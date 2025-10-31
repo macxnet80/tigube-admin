@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, Search, RefreshCw, Eye, Edit, Trash2, Copy, Plus, X, XCircle, CheckCircle, Upload, Loader2 } from 'lucide-react';
+import { Megaphone, Search, RefreshCw, Edit, Trash2, Copy, Plus, X, XCircle, Upload, Loader2 } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';
 
 interface Advertisement {

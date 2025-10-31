@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, Download, RefreshCw, Eye, Shield, ShieldOff, CheckCircle, XCircle, MoreVertical, UserCheck, UserX, CheckCircle2, XCircle as XCircleIcon } from 'lucide-react';
+import { Users, Search, Download, RefreshCw, Eye, Shield, ShieldOff, XCircle, UserCheck, UserX, CheckCircle2, XCircle as XCircleIcon } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';
 
 interface User {

@@ -30,7 +30,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     let mounted = true;
-    let authStateSubscription: { unsubscribe: () => void } | null = null;
+    let authStateSubscription: ReturnType<typeof supabase.auth.onAuthStateChange> | null = null;
     let initialLoadCompleted = false;
 
     // Timeout-Fallback: Nach 3 Sekunden definitiv loading auf false setzen
@@ -115,10 +115,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (session?.user) {
               setUser(session.user);
               await checkAdminStatus(session.user.id);
-            } else if (event !== 'SIGNED_OUT') {
-              // Nur bei explizitem SIGNED_OUT ausloggen, nicht bei fehlender Session
-              // (könnte temporär sein während Token-Refresh)
-              console.log('No session found, but event is not SIGNED_OUT:', event);
+            } else {
+              // Session fehlt bei anderen Events (nicht SIGNED_OUT)
+              // könnte temporär sein während Token-Refresh
+              console.log('No session found for event:', event);
             }
           } catch (error) {
             console.error('Error in auth state change:', error);
@@ -131,7 +131,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       mounted = false;
       clearTimeout(timeoutId);
       if (authStateSubscription) {
-        authStateSubscription.unsubscribe();
+        authStateSubscription.data.subscription.unsubscribe();
       }
     };
   }, []);

@@ -602,7 +602,7 @@ export class AdminService {
       const filePath = `ads/${fileName}`;
 
       // Datei hochladen
-      const { data, error } = await client.storage
+      const { error } = await client.storage
         .from('advertisement-images')
         .upload(filePath, file, {
           cacheControl: '3600',
