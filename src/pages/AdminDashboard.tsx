@@ -9,8 +9,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   CheckCircle2,
-  Clock,
-  XCircle,
   RefreshCw
 } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';

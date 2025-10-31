@@ -313,7 +313,7 @@ export class AdminService {
       const client = supabaseAdmin || supabase;
       
       // Prüfe zuerst, ob ein caretaker_profiles Eintrag existiert
-      const { data: existingProfile, error: checkError } = await client
+      const { error: checkError } = await client
         .from('caretaker_profiles')
         .select('id')
         .eq('id', userId)

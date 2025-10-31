@@ -52,7 +52,6 @@ const AdvertisementManagement: React.FC = () => {
   const [advertisements, setAdvertisements] = useState<Advertisement[]>([]);
   const [formats, setFormats] = useState<AdvertisementFormat[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingFormats, setLoadingFormats] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterActive, setFilterActive] = useState<string>('all');
@@ -88,13 +87,10 @@ const AdvertisementManagement: React.FC = () => {
 
   const loadFormats = async () => {
     try {
-      setLoadingFormats(true);
       const formatsData = await AdminService.getAdvertisementFormats();
       setFormats(formatsData);
     } catch (err) {
       console.error('Error loading formats:', err);
-    } finally {
-      setLoadingFormats(false);
     }
   };
 
