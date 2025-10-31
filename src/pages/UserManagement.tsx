@@ -52,6 +52,9 @@ const UserManagement: React.FC = () => {
   const [totalUsers, setTotalUsers] = useState(0);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [userToReject, setUserToReject] = useState<string | null>(null);
 
   const usersPerPage = 50; // Mehr User pro Seite laden, damit alle sichtbar sind
 
@@ -129,7 +132,34 @@ const UserManagement: React.FC = () => {
   };
 
   const handleRejectUser = async (userId: string) => {
-    await handleSetApprovalStatus(userId, 'rejected');
+    setUserToReject(userId);
+    setShowRejectModal(true);
+  };
+
+  const handleConfirmRejection = async () => {
+    if (!userToReject) return;
+    
+    if (!rejectionReason.trim()) {
+      alert('Bitte geben Sie einen Ablehnungsgrund an.');
+      return;
+    }
+
+    try {
+      const success = await AdminService.rejectUser(userToReject, rejectionReason.trim());
+      if (success) {
+        setShowRejectModal(false);
+        setRejectionReason('');
+        setUserToReject(null);
+        await loadUsers(currentPage);
+        // Schließe auch das User-Modal falls es geöffnet ist
+        if (showUserModal) {
+          setShowUserModal(false);
+        }
+      }
+    } catch (err) {
+      console.error('Error rejecting user:', err);
+      alert('Fehler beim Ablehnen des Benutzers.');
+    }
   };
 
   const handleExportUsers = () => {
@@ -431,11 +461,11 @@ const UserManagement: React.FC = () => {
                             </button>
                           )}
 
-                          {(user.approval_status === 'pending' || user.approval_status === 'not_requested' || !user.approval_status) && (
+                          {(user.approval_status === 'pending' || user.approval_status === 'not_requested' || !user.approval_status || user.approval_status === 'rejected') && (
                             <button
                               onClick={() => handleApproveUser(user.id)}
                               className="text-green-600 hover:text-green-900"
-                              title="User freigeben"
+                              title={user.approval_status === 'rejected' ? "Direkt freigeben" : "User freigeben"}
                             >
                               <CheckCircle2 className="h-4 w-4" />
                             </button>
@@ -760,7 +790,6 @@ const UserManagement: React.FC = () => {
                     <button
                       onClick={() => {
                         handleRejectUser(selectedUser.id);
-                        setShowUserModal(false);
                       }}
                       className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
                     >
@@ -771,12 +800,12 @@ const UserManagement: React.FC = () => {
                   {(selectedUser.approval_status === 'rejected') && (
                     <button
                       onClick={() => {
-                        handleSetApprovalStatus(selectedUser.id, 'pending');
+                        handleApproveUser(selectedUser.id);
                         setShowUserModal(false);
                       }}
-                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm"
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                     >
-                      Auf Freigabe setzen
+                      Direkt freigeben
                     </button>
                   )}
                   
@@ -808,6 +837,65 @@ const UserManagement: React.FC = () => {
                     {selectedUser.is_suspended ? 'Entsperren' : 'Sperren'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">User ablehnen</h3>
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectionReason('');
+                  setUserToReject(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ablehnungsgrund <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Bitte geben Sie den Grund für die Ablehnung an..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                  rows={4}
+                  required
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Dieser Grund wird in den Benutzerdaten gespeichert.
+                </p>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectionReason('');
+                    setUserToReject(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleConfirmRejection}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                >
+                  Ablehnen
+                </button>
               </div>
             </div>
           </div>

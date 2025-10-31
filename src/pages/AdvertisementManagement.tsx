@@ -27,11 +27,32 @@ interface Advertisement {
   format_id: string | null;
   custom_width: number | null;
   custom_height: number | null;
+  // Format-Informationen aus der View advertisements_with_formats
+  format_name?: string | null;
+  format_description?: string | null;
+  display_width?: number | null;
+  display_height?: number | null;
+  placement?: string | null;
+  function_description?: string | null;
+}
+
+interface AdvertisementFormat {
+  id: string;
+  name: string;
+  description: string | null;
+  width: number;
+  height: number;
+  ad_type: string;
+  placement: string;
+  function_description: string | null;
+  is_active: boolean;
 }
 
 const AdvertisementManagement: React.FC = () => {
   const [advertisements, setAdvertisements] = useState<Advertisement[]>([]);
+  const [formats, setFormats] = useState<AdvertisementFormat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingFormats, setLoadingFormats] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterActive, setFilterActive] = useState<string>('all');
@@ -65,8 +86,21 @@ const AdvertisementManagement: React.FC = () => {
     }
   };
 
+  const loadFormats = async () => {
+    try {
+      setLoadingFormats(true);
+      const formatsData = await AdminService.getAdvertisementFormats();
+      setFormats(formatsData);
+    } catch (err) {
+      console.error('Error loading formats:', err);
+    } finally {
+      setLoadingFormats(false);
+    }
+  };
+
   useEffect(() => {
     loadAdvertisements();
+    loadFormats();
   }, []);
 
   // Verhindere Body-Scroll wenn Modal offen ist
@@ -94,7 +128,8 @@ const AdvertisementManagement: React.FC = () => {
       image_url: '',
       link_url: '',
       cta_text: 'Mehr erfahren',
-      ad_type: 'search_card',
+      ad_type: '',
+      format_id: null,
       target_pet_types: [],
       target_locations: [],
       target_subscription_types: ['free'], // Free als Default
@@ -111,11 +146,26 @@ const AdvertisementManagement: React.FC = () => {
   };
 
   const handleEdit = (ad: Advertisement) => {
+    // Wenn format_id vorhanden ist, aber custom_width/custom_height fehlen,
+    // hole sie aus dem Format
+    let customWidth = ad.custom_width;
+    let customHeight = ad.custom_height;
+    
+    if (ad.format_id && (!customWidth || !customHeight)) {
+      const format = formats.find(f => f.id === ad.format_id);
+      if (format) {
+        customWidth = format.width;
+        customHeight = format.height;
+      }
+    }
+    
     setFormData({
       ...ad,
       target_subscription_types: ad.target_subscription_types && ad.target_subscription_types.length > 0 
         ? ad.target_subscription_types 
-        : ['free'] // Fallback zu Free wenn leer
+        : ['free'], // Fallback zu Free wenn leer
+      custom_width: customWidth,
+      custom_height: customHeight
     });
     // Beim Bearbeiten standardmäßig URL-Modus verwenden
     setImageInputMode('url');
@@ -123,6 +173,28 @@ const AdvertisementManagement: React.FC = () => {
     setUploadingImage(false);
     setIsEditMode(true);
     setShowModal(true);
+  };
+
+  const handleFormatChange = (formatId: string) => {
+    const selectedFormat = formats.find(f => f.id === formatId);
+    if (selectedFormat) {
+      setFormData({
+        ...formData,
+        format_id: formatId,
+        ad_type: selectedFormat.ad_type,
+        custom_width: selectedFormat.width || null,
+        custom_height: selectedFormat.height || null
+      });
+    } else {
+      // Wenn kein Format ausgewählt wird (z.B. zurücksetzen auf "-- Format auswählen --")
+      setFormData({
+        ...formData,
+        format_id: null,
+        ad_type: '',
+        custom_width: null,
+        custom_height: null
+      });
+    }
   };
 
   const handleDuplicate = async (id: string) => {
@@ -149,10 +221,39 @@ const AdvertisementManagement: React.FC = () => {
 
   const handleSave = async () => {
     try {
+      // Validierung: Format-ID muss vorhanden sein
+      if (!formData.format_id) {
+        alert('Bitte wählen Sie ein Anzeigeformat aus.');
+        return;
+      }
+
+      // Filtere nur die Spalten, die tatsächlich in der advertisements Tabelle existieren
+      // (nicht die zusätzlichen Spalten aus der View advertisements_with_formats)
+      const cleanFormData: any = {
+        title: formData.title,
+        description: formData.description,
+        image_url: formData.image_url,
+        link_url: formData.link_url,
+        cta_text: formData.cta_text,
+        ad_type: formData.ad_type,
+        format_id: formData.format_id,
+        target_pet_types: formData.target_pet_types,
+        target_locations: formData.target_locations,
+        target_subscription_types: formData.target_subscription_types,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        is_active: formData.is_active,
+        priority: formData.priority,
+        max_impressions: formData.max_impressions,
+        max_clicks: formData.max_clicks,
+        custom_width: formData.custom_width,
+        custom_height: formData.custom_height
+      };
+
       if (isEditMode && selectedAdvertisement) {
-        await AdminService.updateAdvertisement(selectedAdvertisement.id, formData);
+        await AdminService.updateAdvertisement(selectedAdvertisement.id, cleanFormData);
       } else {
-        await AdminService.createAdvertisement(formData);
+        await AdminService.createAdvertisement(cleanFormData);
       }
       setShowModal(false);
       setFormData({});
@@ -353,9 +454,24 @@ const AdvertisementManagement: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900">
-                          {getAdTypeLabel(ad.ad_type)}
-                        </span>
+                        <div className="text-sm">
+                          <div className="text-gray-900 font-medium">
+                            {ad.format_name || getAdTypeLabel(ad.ad_type)}
+                          </div>
+                          {ad.format_id && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              {ad.display_width && ad.display_height && (
+                                <div>{ad.display_width} x {ad.display_height} px</div>
+                              )}
+                              {ad.placement && (
+                                <div>{ad.placement}</div>
+                              )}
+                            </div>
+                          )}
+                          {!ad.format_id && (
+                            <div className="text-xs text-red-500 mt-1">⚠ Kein Format zugewiesen</div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(ad)}
@@ -482,26 +598,57 @@ const AdvertisementManagement: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Anzeigetyp</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Anzeigeformat *</label>
                   <select
-                    value={formData.ad_type || 'search_card'}
-                    onChange={(e) => setFormData({ ...formData, ad_type: e.target.value })}
+                    value={formData.format_id || ''}
+                    onChange={(e) => handleFormatChange(e.target.value)}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="search_card">Suchkarte (384 x 480 px)</option>
-                    <option value="search_filter">Suchfilter (970 x 90 px)</option>
-                    <option value="search_card_filter">Suchkarte & Filter (384 x 480 px)</option>
-                    <option value="profile_banner">Profil Banner (728 x 90 px oder 300 x 600 px)</option>
-                    <option value="dashboard_banner">Dashboard Banner (970 x 90 px)</option>
+                    <option value="">-- Format auswählen --</option>
+                    {formats.map((format) => (
+                      <option key={format.id} value={format.id}>
+                        {format.name} ({format.width} x {format.height} px)
+                      </option>
+                    ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formData.ad_type === 'search_card' && 'Empfohlene Größe: 384 x 480 Pixel'}
-                    {formData.ad_type === 'search_filter' && 'Empfohlene Größe: 970 x 90 Pixel'}
-                    {formData.ad_type === 'search_card_filter' && 'Empfohlene Größe: 384 x 480 Pixel'}
-                    {formData.ad_type === 'profile_banner' && 'Empfohlene Größen: 728 x 90 Pixel (oben) oder 300 x 600 Pixel (Seitenleiste)'}
-                    {formData.ad_type === 'dashboard_banner' && 'Empfohlene Größe: 970 x 90 Pixel'}
-                    {!formData.ad_type && 'Wählen Sie einen Anzeigetyp aus'}
-                  </p>
+                  {formData.format_id && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-lg">
+                      {(() => {
+                        const selectedFormat = formats.find(f => f.id === formData.format_id);
+                        if (selectedFormat) {
+                          return (
+                            <div className="text-xs text-gray-700">
+                              <div className="font-medium">{selectedFormat.name}</div>
+                              {selectedFormat.description && (
+                                <div className="mt-1">{selectedFormat.description}</div>
+                              )}
+                              {selectedFormat.function_description && (
+                                <div className="mt-1 text-gray-600">{selectedFormat.function_description}</div>
+                              )}
+                              <div className="mt-1">
+                                <strong>Größe:</strong> {selectedFormat.width} x {selectedFormat.height} px
+                              </div>
+                              {(formData.custom_width || formData.custom_height) && (
+                                <div className="mt-1 text-green-600">
+                                  <strong>Gesetzt:</strong> {formData.custom_width || '-'} x {formData.custom_height || '-'} px
+                                </div>
+                              )}
+                              <div>
+                                <strong>Platzierung:</strong> {selectedFormat.placement}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
+                  {!formData.format_id && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Wählen Sie ein Format aus, um die korrekte Platzierung und Größe zu gewährleisten.
+                    </p>
+                  )}
                 </div>
               </div>
 

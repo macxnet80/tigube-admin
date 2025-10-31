@@ -7,7 +7,11 @@ import {
   Calendar,
   Activity,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  RefreshCw
 } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';
 import { useAdmin } from '../lib/admin/useAdmin';
@@ -23,13 +27,30 @@ interface DashboardStats {
   users_last_30_days: number;
 }
 
+interface PendingUser {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  user_type: string;
+  created_at: string;
+  city: string | null;
+  plz: string | null;
+  approval_status: string;
+  approval_notes: string | null;
+}
+
 const AdminDashboard: React.FC = () => {
   const { adminUser } = useAdmin();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [loadingPendingUsers, setLoadingPendingUsers] = useState(true);
+  const [processingUsers, setProcessingUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadDashboardStats();
+    loadPendingUsers();
   }, []);
 
   const loadDashboardStats = async () => {
@@ -64,6 +85,69 @@ const AdminDashboard: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPendingUsers = async () => {
+    try {
+      setLoadingPendingUsers(true);
+      const users = await AdminService.getPendingApprovalUsers(20);
+      setPendingUsers(users);
+    } catch (error) {
+      console.error('Error loading pending users:', error);
+      setPendingUsers([]);
+    } finally {
+      setLoadingPendingUsers(false);
+    }
+  };
+
+  const handleApproveUser = async (userId: string) => {
+    try {
+      setProcessingUsers(prev => new Set(prev).add(userId));
+      const success = await AdminService.approveUser(userId);
+      if (success) {
+        // Entferne den User aus der Liste
+        setPendingUsers(prev => prev.filter(user => user.id !== userId));
+      }
+    } catch (error) {
+      console.error('Error approving user:', error);
+      alert('Fehler beim Freigeben des Benutzers');
+    } finally {
+      setProcessingUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  };
+
+  const getUserTypeLabel = (userType: string) => {
+    const labels: { [key: string]: string } = {
+      'owner': 'Tierbesitzer',
+      'caretaker': 'Betreuer',
+      'tierarzt': 'Tierarzt',
+      'hundetrainer': 'Hundetrainer',
+      'tierfriseur': 'Tierfriseur',
+      'physiotherapeut': 'Physiotherapeut',
+      'ernaehrungsberater': 'Ernährungsberater',
+      'tierfotograf': 'Tierfotograf',
+      'sonstige': 'Sonstige',
+      'dienstleister': 'Dienstleister',
+      'admin': 'Administrator'
+    };
+    return labels[userType] || userType;
+  };
+
+  const getApprovalStatusBadge = (status: string) => {
+    switch (status) {
+      case 'not_requested':
+        return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Noch nicht angefragt</span>;
+      case 'pending':
+        return <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Wartet auf Freigabe</span>;
+      case 'rejected':
+        return <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Abgelehnt</span>;
+      default:
+        return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Unbekannt</span>;
     }
   };
 
@@ -204,6 +288,110 @@ const AdminDashboard: React.FC = () => {
               <span className="text-sm font-medium text-gray-900">{stats?.total_messages || 0}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Pending Approvals Task List */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">User-Freigaben erforderlich</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {pendingUsers.length} {pendingUsers.length === 1 ? 'User wartet' : 'User warten'} auf Freigabe
+            </p>
+          </div>
+          <button
+            onClick={loadPendingUsers}
+            disabled={loadingPendingUsers}
+            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loadingPendingUsers ? 'animate-spin' : ''}`} />
+            Aktualisieren
+          </button>
+        </div>
+        <div className="p-6">
+          {loadingPendingUsers ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-500">Lade User...</p>
+            </div>
+          ) : pendingUsers.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-4" />
+              <p className="text-gray-500">Alle User sind freigegeben!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingUsers.map((user) => {
+                const isProcessing = processingUsers.has(user.id);
+                
+                return (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0">
+                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                            <span className="text-sm font-medium text-gray-700">
+                              {user.first_name?.[0]}{user.last_name?.[0]}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-medium text-gray-900 truncate">
+                              {user.first_name} {user.last_name}
+                            </h4>
+                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                              {getUserTypeLabel(user.user_type)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                          {user.city && (
+                            <p className="text-xs text-gray-400">{user.city}, {user.plz}</p>
+                          )}
+                          <div className="mt-1">
+                            {getApprovalStatusBadge(user.approval_status)}
+                          </div>
+                          {user.approval_notes && (
+                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                              <p className="text-red-800 font-medium mb-1">Ablehnungsgrund:</p>
+                              <p className="text-red-700">{user.approval_notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => handleApproveUser(user.id)}
+                        disabled={isProcessing}
+                        className={`px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
+                          user.approval_status === 'rejected' 
+                            ? 'bg-green-600 hover:bg-green-700' 
+                            : 'bg-green-600 hover:bg-green-700'
+                        }`}
+                      >
+                        {isProcessing ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>Wird freigegeben...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>{user.approval_status === 'rejected' ? 'Erneut freigeben' : 'Freigeben'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

@@ -184,8 +184,10 @@ export class AdminService {
           suspension_reason,
           suspended_at,
           suspended_by,
-          approval_status,
-          approval_notes
+          caretaker_profiles!caretaker_profiles_id_fkey(
+            approval_status,
+            approval_notes
+          )
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -198,8 +200,22 @@ export class AdminService {
 
       console.log(`Fetched ${users?.length || 0} users, total count: ${count}`);
 
+      // Mappe die Daten und füge approval_status aus caretaker_profiles hinzu
+      const mappedUsers = (users || []).map((user: any) => {
+        const caretakerProfile = Array.isArray(user.caretaker_profiles) 
+          ? user.caretaker_profiles[0] 
+          : user.caretaker_profiles || null;
+        
+        return {
+          ...user,
+          approval_status: caretakerProfile?.approval_status || user.approval_status || 'not_requested',
+          approval_notes: caretakerProfile?.approval_notes || user.approval_notes || null,
+          caretaker_profiles: undefined // Entferne das verschachtelte Objekt
+        };
+      });
+
       return {
-        data: users || [],
+        data: mappedUsers,
         total: count || 0,
         page,
         limit
@@ -290,20 +306,87 @@ export class AdminService {
   // User-Freigabe-Status setzen
   static async setUserApprovalStatus(
     userId: string, 
-    status: 'not_requested' | 'pending' | 'approved' | 'rejected'
+    status: 'not_requested' | 'pending' | 'approved' | 'rejected',
+    approvalNotes?: string | null
   ): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
       
+      // Prüfe zuerst, ob ein caretaker_profiles Eintrag existiert
+      const { data: existingProfile, error: checkError } = await client
+        .from('caretaker_profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking caretaker profile:', checkError);
+        return false;
+      }
+
+      // Hole aktuellen Admin-User für approval_approved_by
+      const { data: { user: adminUser } } = await supabase.auth.getUser();
+      const updateData: any = {
+        approval_status: status,
+        updated_at: new Date().toISOString()
+      };
+
+      // Setze approval_notes - beim Ablehnen immer überschreiben, auch wenn leer/null
+      if (status === 'rejected') {
+        // Beim Ablehnen immer den neuen Grund setzen (oder null, wenn kein Grund angegeben)
+        updateData.approval_notes = approvalNotes !== undefined ? approvalNotes : null;
+      } else if (approvalNotes !== undefined) {
+        // Bei anderen Status nur setzen, wenn explizit angegeben
+        updateData.approval_notes = approvalNotes;
+      }
+
+      // Setze approval_approved_by und approval_approved_at nur wenn approved
+      if (status === 'approved') {
+        updateData.approval_approved_at = new Date().toISOString();
+        if (adminUser?.id) {
+          updateData.approval_approved_by = adminUser.id;
+        }
+      }
+
+      // Aktualisiere caretaker_profiles Tabelle
       const { error } = await client
-        .from('users')
-        .update({ 
-          approval_status: status,
-          updated_at: new Date().toISOString()
-        })
+        .from('caretaker_profiles')
+        .update(updateData)
         .eq('id', userId);
 
       if (error) {
+        // Wenn kein Eintrag existiert, erstelle einen
+        if (error.code === 'PGRST116' || error.message?.includes('not found')) {
+          const insertData: any = {
+            id: userId,
+            approval_status: status,
+            updated_at: new Date().toISOString()
+          };
+
+          // Beim Ablehnen immer approval_notes setzen
+          if (status === 'rejected') {
+            insertData.approval_notes = approvalNotes !== undefined ? approvalNotes : null;
+          } else if (approvalNotes !== undefined) {
+            insertData.approval_notes = approvalNotes;
+          }
+
+          // Bei Freigabe approval_approved_by und approval_approved_at setzen
+          if (status === 'approved' && adminUser?.id) {
+            insertData.approval_approved_at = new Date().toISOString();
+            insertData.approval_approved_by = adminUser.id;
+          }
+
+          const { error: insertError } = await client
+            .from('caretaker_profiles')
+            .insert(insertData);
+
+          if (insertError) {
+            console.error('Error creating caretaker profile:', insertError);
+            return false;
+          }
+          return true;
+        }
+
         console.error('Error setting user approval status:', error);
         return false;
       }
@@ -321,8 +404,66 @@ export class AdminService {
   }
 
   // User ablehnen
-  static async rejectUser(userId: string): Promise<boolean> {
-    return this.setUserApprovalStatus(userId, 'rejected');
+  static async rejectUser(userId: string, rejectionReason?: string): Promise<boolean> {
+    return this.setUserApprovalStatus(userId, 'rejected', rejectionReason || null);
+  }
+
+  // Benutzer abrufen, die freigegeben werden müssen
+  static async getPendingApprovalUsers(limit: number = 10) {
+    try {
+      const client = supabaseAdmin;
+      
+      const { data: users, error } = await client
+        .from('users')
+        .select(`
+          id,
+          email,
+          first_name,
+          last_name,
+          user_type,
+          created_at,
+          city,
+          plz,
+          caretaker_profiles!caretaker_profiles_id_fkey(
+            approval_status,
+            approval_notes
+          )
+        `)
+        .in('user_type', ['caretaker', 'dienstleister', 'tierarzt', 'hundetrainer', 'tierfriseur', 'physiotherapeut', 'ernaehrungsberater', 'tierfotograf', 'sonstige'])
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('Error fetching pending approval users:', error);
+        throw error;
+      }
+
+      // Filtere und mappe die Daten
+      const pendingUsers = (users || [])
+        .map((user: any) => {
+          const caretakerProfile = Array.isArray(user.caretaker_profiles) 
+            ? user.caretaker_profiles[0] 
+            : user.caretaker_profiles || null;
+          
+          const approvalStatus = caretakerProfile?.approval_status || 'not_requested';
+          
+          return {
+            ...user,
+            approval_status: approvalStatus,
+            approval_notes: caretakerProfile?.approval_notes || null,
+            caretaker_profiles: undefined
+          };
+        })
+        .filter((user: any) => 
+          user.approval_status === 'pending' || 
+          user.approval_status === 'rejected'
+        );
+
+      return pendingUsers;
+    } catch (error) {
+      console.error('Error fetching pending approval users:', error);
+      throw error;
+    }
   }
 
   // Content moderieren
@@ -406,14 +547,15 @@ export class AdminService {
     }
   }
 
-  // Werbungen abrufen
+  // Werbungen abrufen (mit Format-Informationen)
   static async getAdvertisements(page: number = 1, limit: number = 20) {
     try {
       const client = supabaseAdmin || supabase;
       const offset = (page - 1) * limit;
       
+      // Verwende die View advertisements_with_formats für Format-Informationen
       const { data: advertisements, error, count } = await client
-        .from('advertisements')
+        .from('advertisements_with_formats')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -435,6 +577,29 @@ export class AdminService {
     }
   }
 
+  // Verfügbare Werbeformate abrufen
+  static async getAdvertisementFormats() {
+    try {
+      const client = supabaseAdmin || supabase;
+      
+      const { data: formats, error } = await client
+        .from('advertisement_formats')
+        .select('*')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching advertisement formats:', error);
+        throw error;
+      }
+
+      return formats || [];
+    } catch (error) {
+      console.error('Error fetching advertisement formats:', error);
+      throw error;
+    }
+  }
+
   // Werbung erstellen
   static async createAdvertisement(advertisementData: any) {
     try {
@@ -443,10 +608,25 @@ export class AdminService {
       // Aktuellen Benutzer abrufen
       const { data: { user } } = await supabase.auth.getUser();
       
+      // Wenn format_id gesetzt ist, ad_type immer aus dem Format holen (für Konsistenz)
+      let finalAdType = advertisementData.ad_type;
+      if (advertisementData.format_id) {
+        const { data: format } = await client
+          .from('advertisement_formats')
+          .select('ad_type')
+          .eq('id', advertisementData.format_id)
+          .single();
+        
+        if (format) {
+          finalAdType = format.ad_type;
+        }
+      }
+      
       const { data, error } = await client
         .from('advertisements')
         .insert({
           ...advertisementData,
+          ad_type: finalAdType,
           created_by: user?.id,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -471,10 +651,25 @@ export class AdminService {
     try {
       const client = supabaseAdmin || supabase;
       
+      // Wenn format_id gesetzt ist, ad_type immer aus dem Format holen (für Konsistenz)
+      let finalAdType = advertisementData.ad_type;
+      if (advertisementData.format_id) {
+        const { data: format } = await client
+          .from('advertisement_formats')
+          .select('ad_type')
+          .eq('id', advertisementData.format_id)
+          .single();
+        
+        if (format) {
+          finalAdType = format.ad_type;
+        }
+      }
+      
       const { data, error } = await client
         .from('advertisements')
         .update({
           ...advertisementData,
+          ad_type: finalAdType,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
