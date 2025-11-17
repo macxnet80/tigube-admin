@@ -109,15 +109,12 @@ const ContentModeration: React.FC = () => {
   
   // Reviews
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   
   // Messages
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   
   // Content Items
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
-  const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   
   // Suspended Users
   const [suspendedUsers, setSuspendedUsers] = useState<SuspendedUser[]>([]);
@@ -127,7 +124,6 @@ const ContentModeration: React.FC = () => {
   
   // Support Tickets
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [ticketFilter, setTicketFilter] = useState<string>('all');
 
   useEffect(() => {
@@ -644,7 +640,7 @@ const ContentModeration: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2 ml-4">
                             <button
-                              onClick={() => setSelectedReview(review)}
+                              onClick={() => {}}
                               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                               title="Details anzeigen"
                             >
@@ -695,7 +691,7 @@ const ContentModeration: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2 ml-4">
                             <button
-                              onClick={() => setSelectedMessage(message)}
+                              onClick={() => {}}
                               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                               title="Details anzeigen"
                             >
@@ -772,7 +768,7 @@ const ContentModeration: React.FC = () => {
                               </button>
                             )}
                             <button
-                              onClick={() => setSelectedContent(item)}
+                              onClick={() => {}}
                               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                               title="Details anzeigen"
                             >
@@ -943,7 +939,7 @@ const ContentModeration: React.FC = () => {
                               </button>
                             )}
                             <button
-                              onClick={() => setSelectedTicket(ticket)}
+                              onClick={() => {}}
                               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                               title="Details anzeigen"
                             >

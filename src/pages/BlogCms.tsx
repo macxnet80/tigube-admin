@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Search, RefreshCw, Edit, Trash2, Plus, X, Eye, Calendar, Tag, Folder, Loader2, AlertCircle } from 'lucide-react';
+import { FileText, Search, RefreshCw, Edit, Trash2, Plus, X, Calendar, Tag, Folder, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../lib/toast/ToastContext';
 import { supabaseAdmin } from '../lib/supabase/admin';
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Search, RefreshCw, CheckCircle2, XCircle, Clock, UserCheck, UserX, Eye, AlertCircle, X } from 'lucide-react';
+import { Shield, Search, RefreshCw, CheckCircle2, XCircle, UserCheck, UserX, Eye, AlertCircle, X } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';
 import { useToast } from '../lib/toast/ToastContext';
 import { supabaseAdmin } from '../lib/supabase/admin';
@@ -292,7 +292,7 @@ const VerificationManagement: React.FC = () => {
     if (!userToReject) return;
 
     try {
-      const success = await AdminService.rejectUser(userToReject, rejectionReason || null);
+      const success = await AdminService.rejectUser(userToReject, rejectionReason || undefined);
       if (success) {
         showSuccess('Benutzer erfolgreich abgelehnt');
         setShowRejectModal(false);
