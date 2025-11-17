@@ -89,8 +89,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
         </nav>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 ml-64">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 ml-64">
+          <div className="max-w-7xl mx-auto p-6">
             {children}
           </div>
         </main>

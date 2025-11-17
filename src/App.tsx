@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/auth/AuthContext';
+import { ToastProvider } from './lib/toast/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminLayout from './components/admin/AdminLayout';
 import Login from './pages/Login';
@@ -43,25 +44,27 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route 
-            path="/admin" 
-            element={
-              <ProtectedRoute>
-                <AdminLayout 
-                  activeTab={activeTab} 
-                  onTabChange={setActiveTab}
-                >
-                  {renderContent()}
-                </AdminLayout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="/" element={<Navigate to="/admin" replace />} />
-        </Routes>
-      </Router>
+      <ToastProvider>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
+                  <AdminLayout 
+                    activeTab={activeTab} 
+                    onTabChange={setActiveTab}
+                  >
+                    {renderContent()}
+                  </AdminLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="/" element={<Navigate to="/admin" replace />} />
+          </Routes>
+        </Router>
+      </ToastProvider>
     </AuthProvider>
   );
 }

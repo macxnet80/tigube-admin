@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Search, Download, RefreshCw, Eye, Shield, ShieldOff, XCircle, UserCheck, UserX, CheckCircle2, XCircle as XCircleIcon } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';
 
@@ -78,6 +79,23 @@ const UserManagement: React.FC = () => {
   useEffect(() => {
     loadUsers();
   }, []);
+
+  // Verhindere Body-Scroll wenn Sidepanel offen ist, behalte aber Scrollbar sichtbar
+  useEffect(() => {
+    if (showUserModal || showRejectModal) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    };
+  }, [showUserModal, showRejectModal]);
 
   const handleRefresh = () => {
     loadUsers(currentPage);
@@ -534,11 +552,29 @@ const UserManagement: React.FC = () => {
         )}
       </div>
 
-      {/* User Details Modal */}
-      {showUserModal && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
+      {/* User Details Sidepanel */}
+      <AnimatePresence>
+        {showUserModal && selectedUser && (
+          <>
+            <motion.div 
+              className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => setShowUserModal(false)}
+            />
+            <motion.div 
+              className="fixed top-0 right-0 bottom-0 w-full max-w-2xl bg-white shadow-xl z-[101] flex flex-col"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+            >
+            <div className="p-6 flex flex-col h-full">
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
               <h3 className="text-lg font-medium text-gray-900">Benutzerdetails</h3>
               <button
                 onClick={() => setShowUserModal(false)}
@@ -548,7 +584,7 @@ const UserManagement: React.FC = () => {
               </button>
             </div>
             
-            <div className="space-y-6">
+            <div className="space-y-6 flex-1 overflow-y-auto">
               {/* Grundinformationen */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Grundinformationen</h4>
@@ -759,9 +795,10 @@ const UserManagement: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
               
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex flex-wrap gap-2">
+            <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
+              <div className="flex flex-wrap gap-2">
                   {selectedUser.verification_status === 'not_submitted' && (
                     <button
                       onClick={() => {
@@ -836,18 +873,41 @@ const UserManagement: React.FC = () => {
                   >
                     {selectedUser.is_suspended ? 'Entsperren' : 'Sperren'}
                   </button>
-                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
-      {/* Rejection Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
+      {/* Rejection Sidepanel */}
+      <AnimatePresence>
+        {showRejectModal && (
+          <>
+            <motion.div 
+              className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => {
+                setShowRejectModal(false);
+                setRejectionReason('');
+                setUserToReject(null);
+              }}
+            />
+            <motion.div 
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-xl z-[101] flex flex-col"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+            >
+            <div className="p-6 flex flex-col h-full">
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
               <h3 className="text-lg font-medium text-gray-900">User ablehnen</h3>
               <button
                 onClick={() => {
@@ -861,7 +921,7 @@ const UserManagement: React.FC = () => {
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Ablehnungsgrund <span className="text-red-500">*</span>
@@ -879,7 +939,7 @@ const UserManagement: React.FC = () => {
                 </p>
               </div>
               
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
                 <button
                   onClick={() => {
                     setShowRejectModal(false);
@@ -898,9 +958,11 @@ const UserManagement: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

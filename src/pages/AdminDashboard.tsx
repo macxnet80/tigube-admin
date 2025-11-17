@@ -4,8 +4,6 @@ import {
   TrendingUp, 
   DollarSign, 
   MessageSquare, 
-  Calendar,
-  Activity,
   ArrowUpRight,
   ArrowDownRight,
   CheckCircle2,
@@ -239,56 +237,6 @@ const AdminDashboard: React.FC = () => {
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Benutzerverteilung</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="h-3 w-3 bg-blue-500 rounded-full mr-3"></div>
-                <span className="text-sm text-gray-600">Besitzer</span>
-              </div>
-              <span className="text-sm font-medium text-gray-900">{stats?.total_owners || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="h-3 w-3 bg-green-500 rounded-full mr-3"></div>
-                <span className="text-sm text-gray-600">Betreuer</span>
-              </div>
-              <span className="text-sm font-medium text-gray-900">{stats?.total_caretakers || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="h-3 w-3 bg-purple-500 rounded-full mr-3"></div>
-                <span className="text-sm text-gray-600">Dienstleister</span>
-              </div>
-              <span className="text-sm font-medium text-gray-900">{Math.max(0, (stats?.total_caretakers || 0) - 4)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Aktivität</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <MessageSquare className="h-4 w-4 text-gray-400 mr-3" />
-                <span className="text-sm text-gray-600">Gespräche</span>
-              </div>
-              <span className="text-sm font-medium text-gray-900">{stats?.total_conversations || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Activity className="h-4 w-4 text-gray-400 mr-3" />
-                <span className="text-sm text-gray-600">Nachrichten</span>
-              </div>
-              <span className="text-sm font-medium text-gray-900">{stats?.total_messages || 0}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Pending Approvals Task List */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -390,19 +338,6 @@ const AdminDashboard: React.FC = () => {
               })}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Letzte Aktivitäten</h3>
-        </div>
-        <div className="p-6">
-          <div className="text-center py-8">
-            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">Keine aktuellen Aktivitäten</p>
-          </div>
         </div>
       </div>
     </div>

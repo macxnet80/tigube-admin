@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Megaphone, Search, RefreshCw, Edit, Trash2, Copy, Plus, X, XCircle, Upload, Loader2 } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';
+import { useToast } from '../lib/toast/ToastContext';
 
 interface Advertisement {
   id: string;
@@ -49,6 +51,7 @@ interface AdvertisementFormat {
 }
 
 const AdvertisementManagement: React.FC = () => {
+  const { showSuccess, showError } = useToast();
   const [advertisements, setAdvertisements] = useState<Advertisement[]>([]);
   const [formats, setFormats] = useState<AdvertisementFormat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +69,7 @@ const AdvertisementManagement: React.FC = () => {
   const [imageInputMode, setImageInputMode] = useState<'url' | 'upload'>('url');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const advertisementsPerPage = 20;
 
@@ -99,17 +103,24 @@ const AdvertisementManagement: React.FC = () => {
     loadFormats();
   }, []);
 
-  // Verhindere Body-Scroll wenn Modal offen ist
+  // Verhindere Body-Scroll wenn Sidepanel offen ist, behalte aber Scrollbar sichtbar
   useEffect(() => {
     if (showModal || showDeleteConfirm) {
+      // Berechne Scrollbar-Breite
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      // Setze overflow hidden und füge padding-right hinzu, um Scrollbar-Platz zu reservieren
       document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
     } else {
-      document.body.style.overflow = 'unset';
+      // Entferne overflow hidden und padding-right
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     }
 
     // Cleanup beim Unmount
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     };
   }, [showModal, showDeleteConfirm]);
 
@@ -155,8 +166,24 @@ const AdvertisementManagement: React.FC = () => {
       }
     }
     
+    // Konvertiere Singular zu Plural für Tiergruppen
+    const singularToPlural: { [key: string]: string } = {
+      'Hund': 'Hunde',
+      'Katze': 'Katzen',
+      'Vogel': 'Vögel',
+      'Kaninchen': 'Kaninchen',
+      'Fisch': 'Fische',
+      'Kleintier': 'Kleintiere',
+      'Andere': 'Andere'
+    };
+    
+    const convertedPetTypes = (ad.target_pet_types || []).map(petType => {
+      return singularToPlural[petType] || petType;
+    });
+    
     setFormData({
       ...ad,
+      target_pet_types: convertedPetTypes,
       target_subscription_types: ad.target_subscription_types && ad.target_subscription_types.length > 0 
         ? ad.target_subscription_types 
         : ['free'], // Fallback zu Free wenn leer
@@ -197,9 +224,10 @@ const AdvertisementManagement: React.FC = () => {
     try {
       await AdminService.duplicateAdvertisement(id);
       await loadAdvertisements(currentPage);
+      showSuccess('Werbung erfolgreich dupliziert');
     } catch (err) {
       console.error('Error duplicating advertisement:', err);
-      alert('Fehler beim Duplizieren der Werbung');
+      showError('Fehler beim Duplizieren der Werbung');
     }
   };
 
@@ -209,19 +237,27 @@ const AdvertisementManagement: React.FC = () => {
       await loadAdvertisements(currentPage);
       setShowDeleteConfirm(false);
       setDeleteTargetId(null);
+      showSuccess('Werbung erfolgreich gelöscht');
     } catch (err) {
       console.error('Error deleting advertisement:', err);
-      alert('Fehler beim Löschen der Werbung');
+      showError('Fehler beim Löschen der Werbung');
     }
   };
 
   const handleSave = async () => {
+    // Verhindere mehrfaches Klicken
+    if (saving) {
+      return;
+    }
+
     try {
       // Validierung: Format-ID muss vorhanden sein
       if (!formData.format_id) {
-        alert('Bitte wählen Sie ein Anzeigeformat aus.');
+        showError('Bitte wählen Sie ein Anzeigeformat aus.');
         return;
       }
+
+      setSaving(true);
 
       // Filtere nur die Spalten, die tatsächlich in der advertisements Tabelle existieren
       // (nicht die zusätzlichen Spalten aus der View advertisements_with_formats)
@@ -248,15 +284,21 @@ const AdvertisementManagement: React.FC = () => {
 
       if (isEditMode && selectedAdvertisement) {
         await AdminService.updateAdvertisement(selectedAdvertisement.id, cleanFormData);
+        showSuccess('Werbung erfolgreich aktualisiert');
       } else {
         await AdminService.createAdvertisement(cleanFormData);
+        showSuccess('Werbung erfolgreich erstellt');
       }
+      
       setShowModal(false);
       setFormData({});
+      setSelectedAdvertisement(null);
       await loadAdvertisements(currentPage);
     } catch (err) {
       console.error('Error saving advertisement:', err);
-      alert('Fehler beim Speichern der Werbung');
+      showError('Fehler beim Speichern der Werbung. Bitte versuchen Sie es erneut.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -559,11 +601,36 @@ const AdvertisementManagement: React.FC = () => {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
+      {/* Create/Edit Sidepanel */}
+      <AnimatePresence>
+        {showModal && (
+          <>
+            <motion.div 
+              className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => {
+                setShowModal(false);
+                setFormData({});
+                setSelectedAdvertisement(null);
+                setImageInputMode('url');
+                setUploadError(null);
+                setUploadingImage(false);
+              }}
+            />
+            <motion.div 
+              className="fixed top-0 right-0 bottom-0 w-full max-w-3xl bg-white shadow-xl z-[101] flex flex-col"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+            >
+            <div className="p-6 flex flex-col h-full">
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
               <h3 className="text-lg font-medium text-gray-900">
                 {isEditMode ? 'Werbung bearbeiten' : 'Neue Werbung erstellen'}
               </h3>
@@ -582,7 +649,7 @@ const AdvertisementManagement: React.FC = () => {
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Titel</label>
@@ -868,24 +935,47 @@ const AdvertisementManagement: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Tiergruppen</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {['Hund', 'Katze', 'Vogel', 'Kaninchen', 'Fisch', 'Kleintier', 'Andere'].map((petType) => (
-                    <label key={petType} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={(formData.target_pet_types || []).includes(petType)}
-                        onChange={(e) => {
-                          const currentTypes = formData.target_pet_types || [];
-                          if (e.target.checked) {
-                            setFormData({ ...formData, target_pet_types: [...currentTypes, petType] });
-                          } else {
-                            setFormData({ ...formData, target_pet_types: currentTypes.filter(t => t !== petType) });
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{petType}</span>
-                    </label>
-                  ))}
+                  {['Hunde', 'Katzen', 'Vögel', 'Kaninchen', 'Fische', 'Kleintiere', 'Andere'].map((petType) => {
+                    // Mapping für Kompatibilität mit alten Daten (Singular -> Plural)
+                    const singularToPlural: { [key: string]: string } = {
+                      'Hund': 'Hunde',
+                      'Katze': 'Katzen',
+                      'Vogel': 'Vögel',
+                      'Kaninchen': 'Kaninchen',
+                      'Fisch': 'Fische',
+                      'Kleintier': 'Kleintiere',
+                      'Andere': 'Andere'
+                    };
+                    
+                    // Prüfe ob der Wert im formData vorhanden ist (entweder als Plural oder Singular)
+                    const isChecked = (formData.target_pet_types || []).some(t => {
+                      return t === petType || singularToPlural[t] === petType;
+                    });
+                    
+                    return (
+                      <label key={petType} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentTypes = formData.target_pet_types || [];
+                            // Entferne sowohl Singular als auch Plural-Versionen
+                            const cleanedTypes = currentTypes.filter(t => {
+                              return t !== petType && singularToPlural[t] !== petType;
+                            });
+                            
+                            if (e.target.checked) {
+                              setFormData({ ...formData, target_pet_types: [...cleanedTypes, petType] });
+                            } else {
+                              setFormData({ ...formData, target_pet_types: cleanedTypes });
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{petType}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -938,9 +1028,10 @@ const AdvertisementManagement: React.FC = () => {
                   </label>
                 </div>
               </div>
+            </div>
 
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex gap-2 justify-end">
+            <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
+              <div className="flex gap-2 justify-end">
                   <button
                     onClick={() => {
                       setShowModal(false);
@@ -956,29 +1047,61 @@ const AdvertisementManagement: React.FC = () => {
                   </button>
                   <button
                     onClick={handleSave}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                    disabled={saving}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {isEditMode ? 'Aktualisieren' : 'Erstellen'}
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {isEditMode ? 'Wird aktualisiert...' : 'Wird erstellt...'}
+                      </>
+                    ) : (
+                      isEditMode ? 'Aktualisieren' : 'Erstellen'
+                    )}
                   </button>
-                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && deleteTargetId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
+      {/* Delete Confirmation Sidepanel */}
+      <AnimatePresence>
+        {showDeleteConfirm && deleteTargetId && (
+          <>
+            <motion.div 
+              className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setDeleteTargetId(null);
+              }}
+            />
+            <motion.div 
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-xl z-[101] flex flex-col"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+            >
+            <div className="p-6 flex flex-col h-full">
+            <div className="flex items-center gap-3 mb-4 flex-shrink-0">
               <XCircle className="h-8 w-8 text-red-600" />
               <h3 className="text-lg font-medium text-gray-900">Werbung löschen?</h3>
             </div>
+            <div className="flex-1 overflow-y-auto">
             <p className="text-gray-600 mb-6">
               Möchten Sie diese Werbung wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
             </p>
-            <div className="flex gap-2 justify-end">
+            </div>
+            <div className="flex gap-2 justify-end pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
               <button
                 onClick={() => {
                   setShowDeleteConfirm(false);
@@ -995,9 +1118,11 @@ const AdvertisementManagement: React.FC = () => {
                 Löschen
               </button>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
