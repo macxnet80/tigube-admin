@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../lib/auth/AuthContext';
 
-type ActiveTab = 'dashboard' | 'users' | 'moderation' | 'analytics' | 'subscriptions' | 'content' | 'advertisements' | 'verification';
+type ActiveTab = 'dashboard' | 'users' | 'moderation' | 'analytics' | 'subscriptions' | 'content' | 'advertisements' | 'verification' | 'help_center';
 
 interface AdminLayoutProps {
   activeTab: ActiveTab;
@@ -11,7 +11,7 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, children }) => {
   const { user, signOut } = useAuth();
-  
+
   const tabs = [
     { id: 'dashboard' as ActiveTab, label: 'Dashboard', icon: '📊' },
     { id: 'users' as ActiveTab, label: 'Benutzer', icon: '👥' },
@@ -21,6 +21,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
     { id: 'content' as ActiveTab, label: 'Content', icon: '📝' },
     { id: 'advertisements' as ActiveTab, label: 'Werbung', icon: '📢' },
     { id: 'verification' as ActiveTab, label: 'Verifizierung', icon: '✅' },
+    { id: 'help_center' as ActiveTab, label: 'Hilfe-Center', icon: '❓' },
   ];
 
   const handleSignOut = async () => {
@@ -35,14 +36,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
           {/* Logo */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-center">
-              <img 
-                src="/Logos/tigube_logo.svg" 
-                alt="Tigube Logo" 
+              <img
+                src="/Logos/tigube_logo.svg"
+                alt="Tigube Logo"
                 className="h-12 w-auto"
               />
             </div>
           </div>
-          
+
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto p-4">
             <ul className="space-y-2">
@@ -50,11 +51,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
                 <li key={tab.id}>
                   <button
                     onClick={() => onTabChange(tab.id)}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      activeTab === tab.id
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.id
                         ? 'bg-primary-100 text-primary-700'
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
+                      }`}
                   >
                     <span className="mr-3">{tab.icon}</span>
                     {tab.label}
@@ -63,7 +63,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
               ))}
             </ul>
           </div>
-          
+
           {/* Avatar Bereich - Fix am unteren Rand */}
           <div className="p-4 border-t border-gray-200 bg-white mt-auto">
             <div className="flex items-center space-x-3 mb-3">
@@ -79,7 +79,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
                 <p className="text-xs text-gray-500">Administrator</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={handleSignOut}
               className="w-full bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
             >

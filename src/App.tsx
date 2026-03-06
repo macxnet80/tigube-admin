@@ -13,8 +13,9 @@ import SubscriptionSync from './pages/SubscriptionSync';
 import BlogCms from './pages/BlogCms';
 import AdvertisementManagement from './pages/AdvertisementManagement';
 import VerificationManagement from './pages/VerificationManagement';
+import HelpCenterManagement from './pages/HelpCenterManagement';
 
-type ActiveTab = 'dashboard' | 'users' | 'moderation' | 'analytics' | 'subscriptions' | 'content' | 'advertisements' | 'verification';
+type ActiveTab = 'dashboard' | 'users' | 'moderation' | 'analytics' | 'subscriptions' | 'content' | 'advertisements' | 'verification' | 'help_center';
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -37,6 +38,8 @@ function App() {
         return <AdvertisementManagement />;
       case 'verification':
         return <VerificationManagement />;
+      case 'help_center':
+        return <HelpCenterManagement />;
       default:
         return <AdminDashboard />;
     }
@@ -48,18 +51,18 @@ function App() {
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route 
-              path="/admin" 
+            <Route
+              path="/admin"
               element={
                 <ProtectedRoute>
-                  <AdminLayout 
-                    activeTab={activeTab} 
+                  <AdminLayout
+                    activeTab={activeTab}
                     onTabChange={setActiveTab}
                   >
                     {renderContent()}
                   </AdminLayout>
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route path="/" element={<Navigate to="/admin" replace />} />
           </Routes>

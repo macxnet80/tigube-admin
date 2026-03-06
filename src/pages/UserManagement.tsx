@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Search, Download, RefreshCw, Eye, Shield, ShieldOff, XCircle, UserCheck, UserX, CheckCircle2, XCircle as XCircleIcon } from 'lucide-react';
+import { Users, Search, Download, RefreshCw, Eye, Shield, ShieldOff, XCircle, UserCheck, UserX, CheckCircle2, XCircle as XCircleIcon, Trash } from 'lucide-react';
 import { AdminService } from '../lib/admin/adminService';
 
 interface User {
@@ -56,6 +56,9 @@ const UserManagement: React.FC = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [userToReject, setUserToReject] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
 
   const usersPerPage = 50; // Mehr User pro Seite laden, damit alle sichtbar sind
 
@@ -82,7 +85,7 @@ const UserManagement: React.FC = () => {
 
   // Verhindere Body-Scroll wenn Sidepanel offen ist, behalte aber Scrollbar sichtbar
   useEffect(() => {
-    if (showUserModal || showRejectModal) {
+    if (showUserModal || showRejectModal || showDeleteModal) {
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
       document.body.style.overflow = 'hidden';
       document.body.style.paddingRight = `${scrollbarWidth}px`;
@@ -95,7 +98,7 @@ const UserManagement: React.FC = () => {
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
     };
-  }, [showUserModal, showRejectModal]);
+  }, [showUserModal, showRejectModal, showDeleteModal]);
 
   const handleRefresh = () => {
     loadUsers(currentPage);
@@ -156,7 +159,7 @@ const UserManagement: React.FC = () => {
 
   const handleConfirmRejection = async () => {
     if (!userToReject) return;
-    
+
     if (!rejectionReason.trim()) {
       alert('Bitte geben Sie einen Ablehnungsgrund an.');
       return;
@@ -177,6 +180,33 @@ const UserManagement: React.FC = () => {
     } catch (err) {
       console.error('Error rejecting user:', err);
       alert('Fehler beim Ablehnen des Benutzers.');
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    if (deleteConfirmationText !== 'LÖSCHEN') {
+      alert('Bitte tippen Sie LÖSCHEN zur Bestätigung ein.');
+      return;
+    }
+
+    try {
+      const success = await AdminService.deleteUser(userToDelete.id);
+      if (success) {
+        setShowDeleteModal(false);
+        setDeleteConfirmationText('');
+        setUserToDelete(null);
+        await loadUsers(currentPage);
+        if (showUserModal) {
+          setShowUserModal(false);
+        }
+      } else {
+        alert('Fehler beim Löschen des Benutzers.');
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      alert('Unerwarteter Fehler beim Löschen des Benutzers.');
     }
   };
 
@@ -215,13 +245,13 @@ const UserManagement: React.FC = () => {
     }
 
     return users.filter(user => {
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch = searchTerm === '' ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.city?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesFilter = filterType === 'all' || 
+      const matchesFilter = filterType === 'all' ||
         (filterType === 'owners' && user.user_type === 'owner') ||
         (filterType === 'caretakers' && user.user_type === 'caretaker') ||
         (filterType === 'service_providers' && ['tierarzt', 'hundetrainer', 'tierfriseur', 'physiotherapeut', 'ernaehrungsberater', 'tierfotograf', 'sonstige'].includes(user.user_type)) ||
@@ -252,7 +282,7 @@ const UserManagement: React.FC = () => {
 
   const getApprovalStatusBadge = (user: User) => {
     const status = user.approval_status || 'not_requested';
-    
+
     switch (status) {
       case 'not_requested':
         return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Noch nicht angefragt</span>;
@@ -308,7 +338,7 @@ const UserManagement: React.FC = () => {
             Verwalten Sie alle Benutzer der Plattform ({totalUsers} Benutzer)
           </p>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <select
             value={filterType}
@@ -327,14 +357,14 @@ const UserManagement: React.FC = () => {
             <option value="approval_rejected">Abgelehnt</option>
             <option value="approval_not_requested">Noch nicht angefragt</option>
           </select>
-          <button 
+          <button
             onClick={handleRefresh}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"
           >
             <RefreshCw className="h-4 w-4" />
             Aktualisieren
           </button>
-          <button 
+          <button
             onClick={handleExportUsers}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"
           >
@@ -366,7 +396,7 @@ const UserManagement: React.FC = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Benutzer</h3>
         </div>
-        
+
         {loading ? (
           <div className="p-6 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -376,7 +406,7 @@ const UserManagement: React.FC = () => {
           <div className="p-6 text-center">
             <XCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
             <p className="text-red-500">{error}</p>
-            <button 
+            <button
               onClick={handleRefresh}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
@@ -468,7 +498,7 @@ const UserManagement: React.FC = () => {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
-                          
+
                           {user.verification_status === 'not_submitted' && (
                             <button
                               onClick={() => handleVerifyUser(user.id)}
@@ -498,7 +528,7 @@ const UserManagement: React.FC = () => {
                               <XCircleIcon className="h-4 w-4" />
                             </button>
                           )}
-                          
+
                           <button
                             onClick={() => handleToggleAdminStatus(user.id, !user.is_admin)}
                             className={user.is_admin ? "text-purple-600 hover:text-purple-900" : "text-gray-600 hover:text-gray-900"}
@@ -506,13 +536,24 @@ const UserManagement: React.FC = () => {
                           >
                             {user.is_admin ? <Shield className="h-4 w-4" /> : <ShieldOff className="h-4 w-4" />}
                           </button>
-                          
+
                           <button
                             onClick={() => handleToggleUserStatus(user.id, !user.is_suspended)}
-                            className={user.is_suspended ? "text-green-600 hover:text-green-900" : "text-red-600 hover:text-red-900"}
+                            className={user.is_suspended ? "text-green-600 hover:text-green-900" : "text-orange-600 hover:text-orange-900"}
                             title={user.is_suspended ? "Entsperren" : "Sperren"}
                           >
                             {user.is_suspended ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setUserToDelete(user);
+                              setShowDeleteModal(true);
+                            }}
+                            className="text-red-600 hover:text-red-900 ml-2"
+                            title="User endgültig löschen"
+                          >
+                            <Trash className="h-4 w-4" />
                           </button>
                         </div>
                       </td>
@@ -556,7 +597,7 @@ const UserManagement: React.FC = () => {
       <AnimatePresence>
         {showUserModal && selectedUser && (
           <>
-            <motion.div 
+            <motion.div
               className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
               style={{ margin: 0, padding: 0 }}
               initial={{ opacity: 0 }}
@@ -565,7 +606,7 @@ const UserManagement: React.FC = () => {
               transition={{ duration: 0.3 }}
               onClick={() => setShowUserModal(false)}
             />
-            <motion.div 
+            <motion.div
               className="fixed top-0 right-0 bottom-0 w-full max-w-2xl bg-white shadow-xl z-[101] flex flex-col"
               style={{ margin: 0, padding: 0 }}
               initial={{ x: '100%' }}
@@ -573,309 +614,320 @@ const UserManagement: React.FC = () => {
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             >
-            <div className="p-6 flex flex-col h-full">
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
-              <h3 className="text-lg font-medium text-gray-900">Benutzerdetails</h3>
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XCircle className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="space-y-6 flex-1 overflow-y-auto">
-              {/* Grundinformationen */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Grundinformationen</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Name</label>
-                    <p className="text-sm text-gray-900">{selectedUser.first_name} {selectedUser.last_name}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">E-Mail</label>
-                    <p className="text-sm text-gray-900">{selectedUser.email || 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Typ</label>
-                    <p className="text-sm text-gray-900">{getUserTypeLabel(selectedUser.user_type)}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Geschlecht</label>
-                    <p className="text-sm text-gray-900">{selectedUser.gender ? (selectedUser.gender === 'male' ? 'Männlich' : selectedUser.gender === 'female' ? 'Weiblich' : selectedUser.gender === 'other' ? 'Divers' : 'Keine Angabe') : 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Geburtsdatum</label>
-                    <p className="text-sm text-gray-900">{selectedUser.date_of_birth ? formatDate(selectedUser.date_of_birth) : 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Registriert am</label>
-                    <p className="text-sm text-gray-900">{formatDate(selectedUser.created_at)}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Zuletzt aktualisiert</label>
-                    <p className="text-sm text-gray-900">{selectedUser.updated_at ? formatDate(selectedUser.updated_at) : 'Nicht verfügbar'}</p>
-                  </div>
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                  <h3 className="text-lg font-medium text-gray-900">Benutzerdetails</h3>
+                  <button
+                    onClick={() => setShowUserModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <XCircle className="h-6 w-6" />
+                  </button>
                 </div>
-              </div>
 
-              {/* Kontaktinformationen */}
-              <div className="pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Kontaktinformationen</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-6 flex-1 overflow-y-auto">
+                  {/* Grundinformationen */}
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Telefonnummer</label>
-                    <p className="text-sm text-gray-900">{selectedUser.phone_number || 'Nicht angegeben'}</p>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Grundinformationen</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Name</label>
+                        <p className="text-sm text-gray-900">{selectedUser.first_name} {selectedUser.last_name}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">E-Mail</label>
+                        <p className="text-sm text-gray-900">{selectedUser.email || 'Nicht angegeben'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Typ</label>
+                        <p className="text-sm text-gray-900">{getUserTypeLabel(selectedUser.user_type)}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Geschlecht</label>
+                        <p className="text-sm text-gray-900">{selectedUser.gender ? (selectedUser.gender === 'male' ? 'Männlich' : selectedUser.gender === 'female' ? 'Weiblich' : selectedUser.gender === 'other' ? 'Divers' : 'Keine Angabe') : 'Nicht angegeben'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Geburtsdatum</label>
+                        <p className="text-sm text-gray-900">{selectedUser.date_of_birth ? formatDate(selectedUser.date_of_birth) : 'Nicht angegeben'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Registriert am</label>
+                        <p className="text-sm text-gray-900">{formatDate(selectedUser.created_at)}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Zuletzt aktualisiert</label>
+                        <p className="text-sm text-gray-900">{selectedUser.updated_at ? formatDate(selectedUser.updated_at) : 'Nicht verfügbar'}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Straße</label>
-                    <p className="text-sm text-gray-900">{selectedUser.street || 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">PLZ</label>
-                    <p className="text-sm text-gray-900">{selectedUser.plz || 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Stadt</label>
-                    <p className="text-sm text-gray-900">{selectedUser.city || 'Nicht angegeben'}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-sm font-medium text-gray-500">Vollständige Adresse</label>
-                    <p className="text-sm text-gray-900">
-                      {[selectedUser.street, selectedUser.plz, selectedUser.city].filter(Boolean).join(', ') || 'Nicht angegeben'}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Profilinformationen */}
-              <div className="pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Profilinformationen</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Profilbild</label>
-                    <div className="mt-1">
-                      {selectedUser.profile_photo_url ? (
-                        <img src={selectedUser.profile_photo_url} alt="Profilbild" className="w-16 h-16 rounded-full object-cover" />
-                      ) : (
-                        <p className="text-sm text-gray-500">Kein Profilbild</p>
+                  {/* Kontaktinformationen */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Kontaktinformationen</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Telefonnummer</label>
+                        <p className="text-sm text-gray-900">{selectedUser.phone_number || 'Nicht angegeben'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Straße</label>
+                        <p className="text-sm text-gray-900">{selectedUser.street || 'Nicht angegeben'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">PLZ</label>
+                        <p className="text-sm text-gray-900">{selectedUser.plz || 'Nicht angegeben'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Stadt</label>
+                        <p className="text-sm text-gray-900">{selectedUser.city || 'Nicht angegeben'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-sm font-medium text-gray-500">Vollständige Adresse</label>
+                        <p className="text-sm text-gray-900">
+                          {[selectedUser.street, selectedUser.plz, selectedUser.city].filter(Boolean).join(', ') || 'Nicht angegeben'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Profilinformationen */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Profilinformationen</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Profilbild</label>
+                        <div className="mt-1">
+                          {selectedUser.profile_photo_url ? (
+                            <img src={selectedUser.profile_photo_url} alt="Profilbild" className="w-16 h-16 rounded-full object-cover" />
+                          ) : (
+                            <p className="text-sm text-gray-500">Kein Profilbild</p>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Profil abgeschlossen</label>
+                        <p className="text-sm text-gray-900">{selectedUser.profile_completed ? 'Ja' : 'Nein'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Öffentliches Profil sichtbar</label>
+                        <p className="text-sm text-gray-900">{selectedUser.public_profile_visible ? 'Ja' : 'Nein'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Werbung anzeigen</label>
+                        <p className="text-sm text-gray-900">{selectedUser.show_ads ? 'Ja' : 'Nein'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Premium Badge</label>
+                        <p className="text-sm text-gray-900">{selectedUser.premium_badge ? 'Ja' : 'Nein'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Account-Status */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Account-Status</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Status</label>
+                        <div className="mt-1">{getStatusBadge(selectedUser)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Freigabe-Status</label>
+                        <div className="mt-1">{getApprovalStatusBadge(selectedUser)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Verifizierungs-Status</label>
+                        <p className="text-sm text-gray-900">
+                          {selectedUser.verification_status === 'approved' ? 'Verifiziert' :
+                            selectedUser.verification_status === 'pending' ? 'Ausstehend' :
+                              selectedUser.verification_status === 'rejected' ? 'Abgelehnt' :
+                                selectedUser.verification_status === 'in_review' ? 'In Prüfung' :
+                                  'Nicht eingereicht'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Gesperrt</label>
+                        <p className="text-sm text-gray-900">{selectedUser.is_suspended ? 'Ja' : 'Nein'}</p>
+                      </div>
+                      {selectedUser.is_suspended && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Sperrgrund</label>
+                            <p className="text-sm text-gray-900">{selectedUser.suspension_reason || 'Nicht angegeben'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Gesperrt am</label>
+                            <p className="text-sm text-gray-900">{selectedUser.suspended_at ? formatDate(selectedUser.suspended_at) : 'Nicht verfügbar'}</p>
+                          </div>
+                        </>
+                      )}
+                      {selectedUser.approval_notes && (
+                        <div className="col-span-2">
+                          <label className="text-sm font-medium text-gray-500">Freigabe-Notizen</label>
+                          <p className="text-sm text-gray-900">{selectedUser.approval_notes}</p>
+                        </div>
                       )}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Profil abgeschlossen</label>
-                    <p className="text-sm text-gray-900">{selectedUser.profile_completed ? 'Ja' : 'Nein'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Öffentliches Profil sichtbar</label>
-                    <p className="text-sm text-gray-900">{selectedUser.public_profile_visible ? 'Ja' : 'Nein'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Werbung anzeigen</label>
-                    <p className="text-sm text-gray-900">{selectedUser.show_ads ? 'Ja' : 'Nein'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Premium Badge</label>
-                    <p className="text-sm text-gray-900">{selectedUser.premium_badge ? 'Ja' : 'Nein'}</p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Account-Status */}
-              <div className="pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Account-Status</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Status</label>
-                    <div className="mt-1">{getStatusBadge(selectedUser)}</div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Freigabe-Status</label>
-                    <div className="mt-1">{getApprovalStatusBadge(selectedUser)}</div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Verifizierungs-Status</label>
-                    <p className="text-sm text-gray-900">
-                      {selectedUser.verification_status === 'approved' ? 'Verifiziert' : 
-                       selectedUser.verification_status === 'pending' ? 'Ausstehend' : 
-                       selectedUser.verification_status === 'rejected' ? 'Abgelehnt' : 
-                       selectedUser.verification_status === 'in_review' ? 'In Prüfung' : 
-                       'Nicht eingereicht'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Gesperrt</label>
-                    <p className="text-sm text-gray-900">{selectedUser.is_suspended ? 'Ja' : 'Nein'}</p>
-                  </div>
-                  {selectedUser.is_suspended && (
-                    <>
+                  {/* Subscription-Informationen */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Abonnement-Informationen</h4>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Sperrgrund</label>
-                        <p className="text-sm text-gray-900">{selectedUser.suspension_reason || 'Nicht angegeben'}</p>
+                        <label className="text-sm font-medium text-gray-500">Abonnement-Status</label>
+                        <p className="text-sm text-gray-900">{selectedUser.subscription_status || 'free'}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Gesperrt am</label>
-                        <p className="text-sm text-gray-900">{selectedUser.suspended_at ? formatDate(selectedUser.suspended_at) : 'Nicht verfügbar'}</p>
+                        <label className="text-sm font-medium text-gray-500">Plan-Typ</label>
+                        <p className="text-sm text-gray-900">{selectedUser.plan_type || 'free'}</p>
                       </div>
-                    </>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Plan läuft ab am</label>
+                        <p className="text-sm text-gray-900">{selectedUser.plan_expires_at ? formatDate(selectedUser.plan_expires_at) : 'Nicht gesetzt'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Stripe Customer ID</label>
+                        <p className="text-sm text-gray-900 font-mono text-xs">{selectedUser.stripe_customer_id || 'Nicht vorhanden'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Stripe Subscription ID</label>
+                        <p className="text-sm text-gray-900 font-mono text-xs">{selectedUser.stripe_subscription_id || 'Nicht vorhanden'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Limits & Prioritäten */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Limits & Prioritäten</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Max. Kontaktanfragen</label>
+                        <p className="text-sm text-gray-900">{selectedUser.max_contact_requests ?? 3}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Max. Buchungen</label>
+                        <p className="text-sm text-gray-900">{selectedUser.max_bookings ?? 3}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Such-Priorität</label>
+                        <p className="text-sm text-gray-900">{selectedUser.search_priority ?? 0}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Admin-Informationen */}
+                  {selectedUser.is_admin && (
+                    <div className="pt-4 border-t border-gray-200">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Admin-Informationen</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">Admin-Rolle</label>
+                          <p className="text-sm text-gray-900">{selectedUser.admin_role || 'admin'}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">Letzter Admin-Login</label>
+                          <p className="text-sm text-gray-900">{selectedUser.last_admin_login ? formatDate(selectedUser.last_admin_login) : 'Niemals'}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">2FA aktiviert</label>
+                          <p className="text-sm text-gray-900">{selectedUser.totp_secret ? 'Ja' : 'Nein'}</p>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                  {selectedUser.approval_notes && (
-                    <div className="col-span-2">
-                      <label className="text-sm font-medium text-gray-500">Freigabe-Notizen</label>
-                      <p className="text-sm text-gray-900">{selectedUser.approval_notes}</p>
-                    </div>
-                  )}
                 </div>
-              </div>
 
-              {/* Subscription-Informationen */}
-              <div className="pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Abonnement-Informationen</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Abonnement-Status</label>
-                    <p className="text-sm text-gray-900">{selectedUser.subscription_status || 'free'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Plan-Typ</label>
-                    <p className="text-sm text-gray-900">{selectedUser.plan_type || 'free'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Plan läuft ab am</label>
-                    <p className="text-sm text-gray-900">{selectedUser.plan_expires_at ? formatDate(selectedUser.plan_expires_at) : 'Nicht gesetzt'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Stripe Customer ID</label>
-                    <p className="text-sm text-gray-900 font-mono text-xs">{selectedUser.stripe_customer_id || 'Nicht vorhanden'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Stripe Subscription ID</label>
-                    <p className="text-sm text-gray-900 font-mono text-xs">{selectedUser.stripe_subscription_id || 'Nicht vorhanden'}</p>
-                  </div>
-                </div>
-              </div>
+                <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
+                  <div className="flex flex-wrap gap-2">
+                    {selectedUser.verification_status === 'not_submitted' && (
+                      <button
+                        onClick={() => {
+                          handleVerifyUser(selectedUser.id);
+                          setShowUserModal(false);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        Verifizieren
+                      </button>
+                    )}
 
-              {/* Limits & Prioritäten */}
-              <div className="pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Limits & Prioritäten</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Max. Kontaktanfragen</label>
-                    <p className="text-sm text-gray-900">{selectedUser.max_contact_requests ?? 3}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Max. Buchungen</label>
-                    <p className="text-sm text-gray-900">{selectedUser.max_bookings ?? 3}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Such-Priorität</label>
-                    <p className="text-sm text-gray-900">{selectedUser.search_priority ?? 0}</p>
-                  </div>
-                </div>
-              </div>
+                    {(selectedUser.approval_status === 'pending' || selectedUser.approval_status === 'not_requested' || !selectedUser.approval_status) && (
+                      <button
+                        onClick={() => {
+                          handleApproveUser(selectedUser.id);
+                          setShowUserModal(false);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        Freigeben
+                      </button>
+                    )}
 
-              {/* Admin-Informationen */}
-              {selectedUser.is_admin && (
-                <div className="pt-4 border-t border-gray-200">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Admin-Informationen</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Admin-Rolle</label>
-                      <p className="text-sm text-gray-900">{selectedUser.admin_role || 'admin'}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Letzter Admin-Login</label>
-                      <p className="text-sm text-gray-900">{selectedUser.last_admin_login ? formatDate(selectedUser.last_admin_login) : 'Niemals'}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">2FA aktiviert</label>
-                      <p className="text-sm text-gray-900">{selectedUser.totp_secret ? 'Ja' : 'Nein'}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-              
-            <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
-              <div className="flex flex-wrap gap-2">
-                  {selectedUser.verification_status === 'not_submitted' && (
+                    {(selectedUser.approval_status === 'pending' || selectedUser.approval_status === 'approved') && (
+                      <button
+                        onClick={() => {
+                          handleRejectUser(selectedUser.id);
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                      >
+                        Ablehnen
+                      </button>
+                    )}
+
+                    {(selectedUser.approval_status === 'rejected') && (
+                      <button
+                        onClick={() => {
+                          handleApproveUser(selectedUser.id);
+                          setShowUserModal(false);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        Direkt freigeben
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
-                        handleVerifyUser(selectedUser.id);
+                        handleToggleAdminStatus(selectedUser.id, !selectedUser.is_admin);
                         setShowUserModal(false);
                       }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                    >
-                      Verifizieren
-                    </button>
-                  )}
-
-                  {(selectedUser.approval_status === 'pending' || selectedUser.approval_status === 'not_requested' || !selectedUser.approval_status) && (
-                    <button
-                      onClick={() => {
-                        handleApproveUser(selectedUser.id);
-                        setShowUserModal(false);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                    >
-                      Freigeben
-                    </button>
-                  )}
-
-                  {(selectedUser.approval_status === 'pending' || selectedUser.approval_status === 'approved') && (
-                    <button
-                      onClick={() => {
-                        handleRejectUser(selectedUser.id);
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
-                    >
-                      Ablehnen
-                    </button>
-                  )}
-
-                  {(selectedUser.approval_status === 'rejected') && (
-                    <button
-                      onClick={() => {
-                        handleApproveUser(selectedUser.id);
-                        setShowUserModal(false);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                    >
-                      Direkt freigeben
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={() => {
-                      handleToggleAdminStatus(selectedUser.id, !selectedUser.is_admin);
-                      setShowUserModal(false);
-                    }}
-                    className={`px-4 py-2 rounded-lg text-sm ${
-                      selectedUser.is_admin 
-                        ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                      className={`px-4 py-2 rounded-lg text-sm ${selectedUser.is_admin
+                        ? 'bg-purple-600 text-white hover:bg-purple-700'
                         : 'bg-gray-600 text-white hover:bg-gray-700'
-                    }`}
-                  >
-                    {selectedUser.is_admin ? 'Admin-Rechte entfernen' : 'Admin-Rechte vergeben'}
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      handleToggleUserStatus(selectedUser.id, !selectedUser.is_suspended);
-                      setShowUserModal(false);
-                    }}
-                    className={`px-4 py-2 rounded-lg text-sm ${
-                      selectedUser.is_suspended 
-                        ? 'bg-green-600 text-white hover:bg-green-700' 
-                        : 'bg-red-600 text-white hover:bg-red-700'
-                    }`}
-                  >
-                    {selectedUser.is_suspended ? 'Entsperren' : 'Sperren'}
-                  </button>
+                        }`}
+                    >
+                      {selectedUser.is_admin ? 'Admin-Rechte entfernen' : 'Admin-Rechte vergeben'}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleToggleUserStatus(selectedUser.id, !selectedUser.is_suspended);
+                        setShowUserModal(false);
+                      }}
+                      className={`px-4 py-2 rounded-lg text-sm ${selectedUser.is_suspended
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                    >
+                      {selectedUser.is_suspended ? 'Entsperren' : 'Sperren'}
+                    </button>
+
+                    <div className="flex-1 w-full mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                      <button
+                        onClick={() => {
+                          setUserToDelete(selectedUser);
+                          setShowDeleteModal(true);
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm flex items-center gap-2"
+                      >
+                        <Trash className="h-4 w-4" />
+                        Benutzer endgültig löschen
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            </div>
             </motion.div>
           </>
         )}
@@ -885,7 +937,7 @@ const UserManagement: React.FC = () => {
       <AnimatePresence>
         {showRejectModal && (
           <>
-            <motion.div 
+            <motion.div
               className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
               style={{ margin: 0, padding: 0 }}
               initial={{ opacity: 0 }}
@@ -898,7 +950,7 @@ const UserManagement: React.FC = () => {
                 setUserToReject(null);
               }}
             />
-            <motion.div 
+            <motion.div
               className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-xl z-[101] flex flex-col"
               style={{ margin: 0, padding: 0 }}
               initial={{ x: '100%' }}
@@ -906,59 +958,141 @@ const UserManagement: React.FC = () => {
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             >
-            <div className="p-6 flex flex-col h-full">
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
-              <h3 className="text-lg font-medium text-gray-900">User ablehnen</h3>
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectionReason('');
-                  setUserToReject(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XCircle className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="space-y-4 flex-1 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ablehnungsgrund <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Bitte geben Sie den Grund für die Ablehnung an..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                  rows={4}
-                  required
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Dieser Grund wird in den Benutzerdaten gespeichert.
-                </p>
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                  <h3 className="text-lg font-medium text-gray-900">User ablehnen</h3>
+                  <button
+                    onClick={() => {
+                      setShowRejectModal(false);
+                      setRejectionReason('');
+                      setUserToReject(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <XCircle className="h-6 w-6" />
+                  </button>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-y-auto">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Ablehnungsgrund <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Bitte geben Sie den Grund für die Ablehnung an..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                      rows={4}
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Dieser Grund wird in den Benutzerdaten gespeichert.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
+                    <button
+                      onClick={() => {
+                        setShowRejectModal(false);
+                        setRejectionReason('');
+                        setUserToReject(null);
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      onClick={handleConfirmRejection}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                    >
+                      Ablehnen
+                    </button>
+                  </div>
+                </div>
               </div>
-              
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
-                <button
-                  onClick={() => {
-                    setShowRejectModal(false);
-                    setRejectionReason('');
-                    setUserToReject(null);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  onClick={handleConfirmRejection}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
-                >
-                  Ablehnen
-                </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && userToDelete && (
+          <>
+            <motion.div
+              className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
+              style={{ margin: 0, padding: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => {
+                setShowDeleteModal(false);
+                setDeleteConfirmationText('');
+                setUserToDelete(null);
+              }}
+            />
+            <motion.div
+              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-xl z-[101] overflow-hidden"
+              style={{ margin: 0, padding: 0, y: '-50%', x: '-50%' }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                  <Trash className="h-6 w-6 text-red-600" />
+                </div>
+
+                <h3 className="text-xl font-medium text-center text-gray-900 mb-2">
+                  Benutzer endgültig löschen?
+                </h3>
+
+                <div className="text-sm text-gray-500 text-center mb-6 space-y-2">
+                  <p>
+                    Sie sind dabei, den Benutzer <strong>{userToDelete.first_name} {userToDelete.last_name} ({userToDelete.email})</strong> unwiderruflich zu löschen.
+                  </p>
+                  <p className="font-semibold text-red-600">
+                    Achtung: Diese Aktion kann nicht rückgängig gemacht werden! Alle zugehörigen Daten (Profile, Inserate, Nachrichten) werden ebenfalls gelöscht.
+                  </p>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
+                    Bitte tippen Sie <span className="font-bold">LÖSCHEN</span>, um fortzufahren.
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmationText}
+                    onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                    placeholder="LÖSCHEN"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-center uppercase"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleDeleteUser}
+                    disabled={deleteConfirmationText !== 'LÖSCHEN'}
+                    className="w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <Trash className="h-4 w-4" />
+                    Endgültig löschen
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeleteConfirmationText('');
+                      setUserToDelete(null);
+                    }}
+                    className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
               </div>
-            </div>
-            </div>
             </motion.div>
           </>
         )}

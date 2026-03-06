@@ -26,7 +26,7 @@ export class AdminService {
   static async getDashboardStats(): Promise<DashboardStats> {
     try {
       console.log('Fetching dashboard stats...');
-      
+
       // Verwende normale Supabase-Queries (funktionieren auch ohne Service Role)
       const [
         { count: totalUsers, error: usersError },
@@ -46,7 +46,7 @@ export class AdminService {
         supabase.from('conversations').select('*', { count: 'exact', head: true }),
         supabase.from('messages').select('*', { count: 'exact', head: true }),
         supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      ]).then(results => results.map(result => 
+      ]).then(results => results.map(result =>
         result.status === 'fulfilled' ? result.value : { count: 0, error: result.reason }
       ));
 
@@ -105,7 +105,7 @@ export class AdminService {
   static async getAdminUser(): Promise<AdminUser | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) return null;
 
       // Benutzerdaten aus der Datenbank abrufen
@@ -143,9 +143,9 @@ export class AdminService {
       // Verwende Admin-Client (mit Service Role Key wenn verfügbar, um RLS zu umgehen)
       // Der Admin-Client ist immer verfügbar (auch ohne Service Role Key)
       const client = supabaseAdmin;
-      
+
       console.log('Fetching users - using admin client:', !!supabaseAdmin);
-      
+
       const { data: users, error, count } = await client
         .from('users')
         .select(`
@@ -202,10 +202,10 @@ export class AdminService {
 
       // Mappe die Daten und füge approval_status aus caretaker_profiles hinzu
       const mappedUsers = (users || []).map((user: any) => {
-        const caretakerProfile = Array.isArray(user.caretaker_profiles) 
-          ? user.caretaker_profiles[0] 
+        const caretakerProfile = Array.isArray(user.caretaker_profiles)
+          ? user.caretaker_profiles[0]
           : user.caretaker_profiles || null;
-        
+
         return {
           ...user,
           approval_status: caretakerProfile?.approval_status || user.approval_status || 'not_requested',
@@ -230,10 +230,10 @@ export class AdminService {
   static async verifyUser(userId: string): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('users')
-        .update({ 
+        .update({
           verification_status: 'approved',
           updated_at: new Date().toISOString()
         })
@@ -255,10 +255,10 @@ export class AdminService {
   static async toggleUserStatus(userId: string, isActive: boolean): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('users')
-        .update({ 
+        .update({
           is_suspended: !isActive,
           suspended_at: !isActive ? new Date().toISOString() : null,
           updated_at: new Date().toISOString()
@@ -281,10 +281,10 @@ export class AdminService {
   static async toggleAdminStatus(userId: string, isAdmin: boolean): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('users')
-        .update({ 
+        .update({
           is_admin: isAdmin,
           admin_role: isAdmin ? 'admin' : null,
           updated_at: new Date().toISOString()
@@ -305,13 +305,13 @@ export class AdminService {
 
   // User-Freigabe-Status setzen
   static async setUserApprovalStatus(
-    userId: string, 
+    userId: string,
     status: 'not_requested' | 'pending' | 'approved' | 'rejected',
     approvalNotes?: string | null
   ): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       // Prüfe zuerst, ob ein caretaker_profiles Eintrag existiert
       const { error: checkError } = await client
         .from('caretaker_profiles')
@@ -408,11 +408,50 @@ export class AdminService {
     return this.setUserApprovalStatus(userId, 'rejected', rejectionReason || null);
   }
 
+  // Benutzer unwiderruflich löschen
+  static async deleteUser(userId: string): Promise<boolean> {
+    try {
+      const client = supabaseAdmin;
+
+      if (!client) {
+        console.error('Admin client not available');
+        return false;
+      }
+
+      // 1. Optional: Zuerst den Nutzer aus der öffentlichen users Tabelle löschen
+      // Dies löst ggf. ON DELETE CASCADE auf zugehörigen Tabellen aus,
+      // bevor der User aus auth.users entfernt wird.
+      const { error: dbError } = await client
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (dbError) {
+        console.warn('Fehler beim Löschen des Datensatzes in public.users:', dbError);
+        // Wir setzen trotzdem fort, da auth.admin.deleteUser das wichtigste ist
+      }
+
+      // 2. Nutzer komplett aus dem System (auth.users) löschen
+      const { data, error: authError } = await client.auth.admin.deleteUser(userId);
+
+      if (authError) {
+        console.error('Fehler beim Löschen des Benutzers via Admin API:', authError);
+        return false;
+      }
+
+      console.log('Benutzer erfolgreich endgültig gelöscht:', userId, data);
+      return true;
+    } catch (error) {
+      console.error('Unerwarteter Fehler beim Löschen des Benutzers:', error);
+      return false;
+    }
+  }
+
   // Benutzer abrufen, die freigegeben werden müssen
   static async getPendingApprovalUsers(limit: number = 10) {
     try {
       const client = supabaseAdmin;
-      
+
       const { data: users, error } = await client
         .from('users')
         .select(`
@@ -441,12 +480,12 @@ export class AdminService {
       // Filtere und mappe die Daten
       const pendingUsers = (users || [])
         .map((user: any) => {
-          const caretakerProfile = Array.isArray(user.caretaker_profiles) 
-            ? user.caretaker_profiles[0] 
+          const caretakerProfile = Array.isArray(user.caretaker_profiles)
+            ? user.caretaker_profiles[0]
             : user.caretaker_profiles || null;
-          
+
           const approvalStatus = caretakerProfile?.approval_status || 'not_requested';
-          
+
           return {
             ...user,
             approval_status: approvalStatus,
@@ -454,8 +493,8 @@ export class AdminService {
             caretaker_profiles: undefined
           };
         })
-        .filter((user: any) => 
-          user.approval_status === 'pending' || 
+        .filter((user: any) =>
+          user.approval_status === 'pending' ||
           user.approval_status === 'rejected'
         );
 
@@ -486,7 +525,7 @@ export class AdminService {
 
       // Benutzer-Wachstum abrufen
       const client = supabaseAdmin || supabase;
-      
+
       const { data: userGrowth } = await client
         .from('users')
         .select('created_at')
@@ -517,7 +556,7 @@ export class AdminService {
       // Daten für die letzten Tage generieren
       const userGrowthData = [];
       const messageActivityData = [];
-      
+
       for (let i = days - 1; i >= 0; i--) {
         const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         userGrowthData.push({
@@ -552,7 +591,7 @@ export class AdminService {
     try {
       const client = supabaseAdmin || supabase;
       const offset = (page - 1) * limit;
-      
+
       // Verwende die View advertisements_with_formats für Format-Informationen
       const { data: advertisements, error, count } = await client
         .from('advertisements_with_formats')
@@ -581,7 +620,7 @@ export class AdminService {
   static async getAdvertisementFormats() {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { data: formats, error } = await client
         .from('advertisement_formats')
         .select('*')
@@ -604,10 +643,10 @@ export class AdminService {
   static async createAdvertisement(advertisementData: any) {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       // Aktuellen Benutzer abrufen
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // Wenn format_id gesetzt ist, ad_type immer aus dem Format holen (für Konsistenz)
       let finalAdType = advertisementData.ad_type;
       if (advertisementData.format_id) {
@@ -616,12 +655,12 @@ export class AdminService {
           .select('ad_type')
           .eq('id', advertisementData.format_id)
           .single();
-        
+
         if (format) {
           finalAdType = format.ad_type;
         }
       }
-      
+
       const { data, error } = await client
         .from('advertisements')
         .insert({
@@ -650,7 +689,7 @@ export class AdminService {
   static async updateAdvertisement(id: string, advertisementData: any) {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       // Wenn format_id gesetzt ist, ad_type immer aus dem Format holen (für Konsistenz)
       let finalAdType = advertisementData.ad_type;
       if (advertisementData.format_id) {
@@ -659,12 +698,12 @@ export class AdminService {
           .select('ad_type')
           .eq('id', advertisementData.format_id)
           .single();
-        
+
         if (format) {
           finalAdType = format.ad_type;
         }
       }
-      
+
       const { data, error } = await client
         .from('advertisements')
         .update({
@@ -692,7 +731,7 @@ export class AdminService {
   static async deleteAdvertisement(id: string) {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('advertisements')
         .delete()
@@ -714,7 +753,7 @@ export class AdminService {
   static async duplicateAdvertisement(id: string) {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       // Original-Werbung abrufen
       const { data: original, error: fetchError } = await client
         .from('advertisements')
@@ -765,7 +804,7 @@ export class AdminService {
   static async getAdvertisementById(id: string) {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { data, error } = await client
         .from('advertisements')
         .select('*')
@@ -788,7 +827,7 @@ export class AdminService {
   static async uploadAdvertisementImage(file: File): Promise<string> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       // Eindeutigen Dateinamen erstellen
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 9);
@@ -821,6 +860,137 @@ export class AdminService {
       return urlData.publicUrl;
     } catch (error) {
       console.error('Error uploading advertisement image:', error);
+      throw error;
+    }
+  }
+
+  // ==== Hilfe-Center ====
+
+  // Hilfe-Ressourcen abrufen
+  static async getHelpResources(page: number = 1, limit: number = 20) {
+    try {
+      const client = supabaseAdmin || supabase;
+      const offset = (page - 1) * limit;
+
+      const { data: resources, error, count } = await client
+        .from('help_resources')
+        .select('*', { count: 'exact' })
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('Error fetching help resources:', error);
+        throw error;
+      }
+
+      return {
+        data: resources || [],
+        total: count || 0,
+        page,
+        limit
+      };
+    } catch (error) {
+      console.error('Error fetching help resources:', error);
+      throw error;
+    }
+  }
+
+  // Hilfe-Ressource nach ID abrufen
+  static async getHelpResourceById(id: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+
+      const { data, error } = await client
+        .from('help_resources')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching help resource:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching help resource:', error);
+      throw error;
+    }
+  }
+
+  // Hilfe-Ressource erstellen
+  static async createHelpResource(resourceData: any) {
+    try {
+      const client = supabaseAdmin || supabase;
+
+      const { data, error } = await client
+        .from('help_resources')
+        .insert({
+          ...resourceData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating help resource:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error creating help resource:', error);
+      throw error;
+    }
+  }
+
+  // Hilfe-Ressource aktualisieren
+  static async updateHelpResource(id: string, resourceData: any) {
+    try {
+      const client = supabaseAdmin || supabase;
+
+      const { data, error } = await client
+        .from('help_resources')
+        .update({
+          ...resourceData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating help resource:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error updating help resource:', error);
+      throw error;
+    }
+  }
+
+  // Hilfe-Ressource löschen
+  static async deleteHelpResource(id: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+
+      const { error } = await client
+        .from('help_resources')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting help resource:', error);
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting help resource:', error);
       throw error;
     }
   }
