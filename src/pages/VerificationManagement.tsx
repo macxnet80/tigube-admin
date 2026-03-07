@@ -45,6 +45,7 @@ const VerificationManagement: React.FC = () => {
   const [userToReject, setUserToReject] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [isIdChecked, setIsIdChecked] = useState(false);
   const usersPerPage = 20;
 
   const loadUsers = async (page: number = 1) => {
@@ -127,8 +128,8 @@ const VerificationManagement: React.FC = () => {
 
       // Transformiere die Daten
       let transformedData = (data || []).map((user: any) => {
-        const caretakerProfile = Array.isArray(user.caretaker_profiles) 
-          ? user.caretaker_profiles[0] 
+        const caretakerProfile = Array.isArray(user.caretaker_profiles)
+          ? user.caretaker_profiles[0]
           : user.caretaker_profiles || null;
 
         const verificationRequest = verificationRequestsMap.get(user.id);
@@ -185,7 +186,7 @@ const VerificationManagement: React.FC = () => {
     } catch (err) {
       setError('Fehler beim Laden der Benutzer');
       console.error('Error loading verification users:', err);
-      
+
       // Fallback: Verwende AdminService
       try {
         const pendingUsers = await AdminService.getPendingApprovalUsers(usersPerPage);
@@ -244,7 +245,7 @@ const VerificationManagement: React.FC = () => {
     try {
       // Aktualisiere verification_status in users Tabelle
       const success = await AdminService.verifyUser(userId);
-      
+
       // Aktualisiere auch den verification_request Status
       if (success && verificationRequestId) {
         const { error: updateError } = await supabaseAdmin
@@ -263,7 +264,9 @@ const VerificationManagement: React.FC = () => {
 
       if (success) {
         showSuccess('Benutzer erfolgreich verifiziert');
+        setIsIdChecked(false);
         await loadUsers(currentPage);
+        setSelectedUser(prev => prev?.id === userId ? { ...prev, verification_status: 'approved', verification_request_status: 'approved' } : prev);
       } else {
         showError('Fehler beim Verifizieren des Benutzers');
       }
@@ -279,6 +282,7 @@ const VerificationManagement: React.FC = () => {
       if (success) {
         showSuccess('Benutzer erfolgreich freigegeben');
         await loadUsers(currentPage);
+        setSelectedUser(prev => prev?.id === userId ? { ...prev, approval_status: 'approved' } : prev);
       } else {
         showError('Fehler beim Freigeben des Benutzers');
       }
@@ -297,6 +301,7 @@ const VerificationManagement: React.FC = () => {
         showSuccess('Benutzer erfolgreich abgelehnt');
         setShowRejectModal(false);
         setRejectionReason('');
+        setSelectedUser(prev => prev?.id === userToReject ? { ...prev, approval_status: 'rejected', approval_notes: rejectionReason || null } : prev);
         setUserToReject(null);
         await loadUsers(currentPage);
       } else {
@@ -358,7 +363,7 @@ const VerificationManagement: React.FC = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -377,8 +382,8 @@ const VerificationManagement: React.FC = () => {
             Verwalten Sie Benutzer-Verifizierungen ({totalUsers} Benutzer)
           </p>
         </div>
-        
-        <button 
+
+        <button
           onClick={handleRefresh}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"
         >
@@ -399,7 +404,7 @@ const VerificationManagement: React.FC = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        
+
         <select
           value={filterType}
           onChange={(e) => {
@@ -443,7 +448,7 @@ const VerificationManagement: React.FC = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Benutzer</h3>
         </div>
-        
+
         {loading ? (
           <div className="p-6 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -453,7 +458,7 @@ const VerificationManagement: React.FC = () => {
           <div className="p-6 text-center">
             <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
             <p className="text-red-500">{error}</p>
-            <button 
+            <button
               onClick={handleRefresh}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
@@ -497,8 +502,8 @@ const VerificationManagement: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {user.profile_photo_url ? (
-                            <img 
-                              src={user.profile_photo_url} 
+                            <img
+                              src={user.profile_photo_url}
                               alt={`${user.first_name} ${user.last_name}`}
                               className="h-10 w-10 rounded-full object-cover"
                               onError={(e) => {
@@ -619,7 +624,7 @@ const VerificationManagement: React.FC = () => {
       <AnimatePresence>
         {showUserModal && selectedUser && (
           <>
-            <motion.div 
+            <motion.div
               className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
               style={{ margin: 0, padding: 0 }}
               initial={{ opacity: 0 }}
@@ -628,7 +633,7 @@ const VerificationManagement: React.FC = () => {
               transition={{ duration: 0.3 }}
               onClick={() => setShowUserModal(false)}
             />
-            <motion.div 
+            <motion.div
               className="fixed top-0 right-0 bottom-0 w-full max-w-2xl bg-white shadow-xl z-[101] flex flex-col"
               style={{ margin: 0, padding: 0 }}
               initial={{ x: '100%' }}
@@ -636,169 +641,182 @@ const VerificationManagement: React.FC = () => {
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             >
-            <div className="p-6 flex flex-col h-full">
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
-              <h3 className="text-lg font-medium text-gray-900">Benutzer Details</h3>
-              <button
-                onClick={() => {
-                  setShowUserModal(false);
-                  setSelectedUser(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="space-y-4 flex-1 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <p className="text-sm text-gray-900">{selectedUser.first_name} {selectedUser.last_name}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
-                  <p className="text-sm text-gray-900">{selectedUser.email}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Benutzertyp</label>
-                  <p className="text-sm text-gray-900">{selectedUser.user_type || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Erstellt am</label>
-                  <p className="text-sm text-gray-900">{formatDate(selectedUser.created_at)}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Verifizierungsstatus</label>
-                  <div className="mt-1">
-                    {getVerificationStatusBadge(selectedUser.verification_status, selectedUser.verification_request_status)}
-                  </div>
-                </div>
-                {selectedUser.verification_request_created_at && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Antrag gestellt am</label>
-                    <p className="text-sm text-gray-900">{formatDate(selectedUser.verification_request_created_at)}</p>
-                  </div>
-                )}
-                {selectedUser.verification_request_reviewed_at && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Geprüft am</label>
-                    <p className="text-sm text-gray-900">{formatDate(selectedUser.verification_request_reviewed_at)}</p>
-                  </div>
-                )}
-                {selectedUser.verification_request_admin_comment && (
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Admin-Kommentar</label>
-                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedUser.verification_request_admin_comment}</p>
-                  </div>
-                )}
-                {selectedUser.verification_request_ausweis_url && (
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ausweis</label>
-                    <a 
-                      href={selectedUser.verification_request_ausweis_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm underline"
-                    >
-                      Ausweis anzeigen
-                    </a>
-                  </div>
-                )}
-                {selectedUser.verification_request_zertifikate_urls && selectedUser.verification_request_zertifikate_urls.length > 0 && (
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Zertifikate</label>
-                    <div className="space-y-2">
-                      {selectedUser.verification_request_zertifikate_urls.map((url: string, index: number) => (
-                        <a 
-                          key={index}
-                          href={url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="block text-blue-600 hover:text-blue-800 text-sm underline"
-                        >
-                          Zertifikat {index + 1} anzeigen
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Freigabestatus</label>
-                  <div className="mt-1">
-                    {getApprovalStatusBadge(selectedUser.approval_status)}
-                  </div>
-                </div>
-                {selectedUser.approval_requested_at && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Freigabe beantragt am</label>
-                    <p className="text-sm text-gray-900">{formatDate(selectedUser.approval_requested_at)}</p>
-                  </div>
-                )}
-                {selectedUser.approval_approved_at && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Freigegeben am</label>
-                    <p className="text-sm text-gray-900">{formatDate(selectedUser.approval_approved_at)}</p>
-                  </div>
-                )}
-                {selectedUser.approval_notes && (
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Notizen</label>
-                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedUser.approval_notes}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-200 flex gap-2 justify-end flex-shrink-0 mt-auto">
-              {(selectedUser.verification_request_status === 'pending' || selectedUser.verification_status === 'pending') && (
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                  <h3 className="text-lg font-medium text-gray-900">Benutzer Details</h3>
                   <button
                     onClick={() => {
-                      handleVerifyUser(selectedUser.id, selectedUser.verification_request_id);
                       setShowUserModal(false);
+                      setSelectedUser(null);
+                      setIsIdChecked(false);
                     }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2"
+                    className="text-gray-400 hover:text-gray-600"
                   >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Verifizieren
+                    <X className="h-6 w-6" />
                   </button>
-                )}
-                {selectedUser.approval_status === 'pending' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        handleApproveUser(selectedUser.id);
-                        setShowUserModal(false);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2"
-                    >
-                      <UserCheck className="h-4 w-4" />
-                      Freigeben
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUserToReject(selectedUser.id);
-                        setShowUserModal(false);
-                        setShowRejectModal(true);
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium flex items-center gap-2"
-                    >
-                      <UserX className="h-4 w-4" />
-                      Ablehnen
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => {
-                    setShowUserModal(false);
-                    setSelectedUser(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  Schließen
-                </button>
-            </div>
-            </div>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <p className="text-sm text-gray-900">{selectedUser.first_name} {selectedUser.last_name}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                      <p className="text-sm text-gray-900">{selectedUser.email}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Benutzertyp</label>
+                      <p className="text-sm text-gray-900">{selectedUser.user_type || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Erstellt am</label>
+                      <p className="text-sm text-gray-900">{formatDate(selectedUser.created_at)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Verifizierungsstatus</label>
+                      <div className="mt-1">
+                        {getVerificationStatusBadge(selectedUser.verification_status, selectedUser.verification_request_status)}
+                      </div>
+                    </div>
+                    {selectedUser.verification_request_created_at && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Antrag gestellt am</label>
+                        <p className="text-sm text-gray-900">{formatDate(selectedUser.verification_request_created_at)}</p>
+                      </div>
+                    )}
+                    {selectedUser.verification_request_reviewed_at && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Geprüft am</label>
+                        <p className="text-sm text-gray-900">{formatDate(selectedUser.verification_request_reviewed_at)}</p>
+                      </div>
+                    )}
+                    {selectedUser.verification_request_admin_comment && (
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Admin-Kommentar</label>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedUser.verification_request_admin_comment}</p>
+                      </div>
+                    )}
+                    {selectedUser.verification_request_ausweis_url && (
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Ausweis</label>
+                        <a
+                          href={selectedUser.verification_request_ausweis_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm underline"
+                        >
+                          Ausweis anzeigen
+                        </a>
+                      </div>
+                    )}
+                    {selectedUser.verification_request_zertifikate_urls && selectedUser.verification_request_zertifikate_urls.length > 0 && (
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Zertifikate</label>
+                        <div className="space-y-2">
+                          {selectedUser.verification_request_zertifikate_urls.map((url: string, index: number) => (
+                            <a
+                              key={index}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-blue-600 hover:text-blue-800 text-sm underline"
+                            >
+                              Zertifikat {index + 1} anzeigen
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Freigabestatus</label>
+                      <div className="mt-1">
+                        {getApprovalStatusBadge(selectedUser.approval_status)}
+                      </div>
+                    </div>
+                    {selectedUser.approval_requested_at && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Freigabe beantragt am</label>
+                        <p className="text-sm text-gray-900">{formatDate(selectedUser.approval_requested_at)}</p>
+                      </div>
+                    )}
+                    {selectedUser.approval_approved_at && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Freigegeben am</label>
+                        <p className="text-sm text-gray-900">{formatDate(selectedUser.approval_approved_at)}</p>
+                      </div>
+                    )}
+                    {selectedUser.approval_notes && (
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Notizen</label>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedUser.approval_notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200 flex gap-2 justify-end flex-shrink-0 mt-auto">
+                  {(selectedUser.verification_request_status === 'pending' || selectedUser.verification_status === 'pending') && (
+                    <div className="flex flex-col gap-3">
+                      <label className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={isIdChecked}
+                          onChange={(e) => setIsIdChecked(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-blue-900">
+                          Ich bestätige, dass der Ausweis erfolgreich überprüft wurde.
+                        </span>
+                      </label>
+                      <button
+                        onClick={() => {
+                          handleVerifyUser(selectedUser.id, selectedUser.verification_request_id);
+                        }}
+                        disabled={!isIdChecked}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Verifizieren
+                      </button>
+                    </div>
+                  )}
+                  {selectedUser.approval_status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          handleApproveUser(selectedUser.id);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2"
+                      >
+                        <UserCheck className="h-4 w-4" />
+                        Freigeben
+                      </button>
+                      <button
+                        onClick={() => {
+                          setUserToReject(selectedUser.id);
+                          setShowRejectModal(true);
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium flex items-center gap-2"
+                      >
+                        <UserX className="h-4 w-4" />
+                        Ablehnen
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowUserModal(false);
+                      setSelectedUser(null);
+                      setIsIdChecked(false);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    Schließen
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </>
         )}
@@ -808,7 +826,7 @@ const VerificationManagement: React.FC = () => {
       <AnimatePresence>
         {showRejectModal && (
           <>
-            <motion.div 
+            <motion.div
               className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
               style={{ margin: 0, padding: 0 }}
               initial={{ opacity: 0 }}
@@ -821,7 +839,7 @@ const VerificationManagement: React.FC = () => {
                 setUserToReject(null);
               }}
             />
-            <motion.div 
+            <motion.div
               className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-xl z-[101] flex flex-col"
               style={{ margin: 0, padding: 0 }}
               initial={{ x: '100%' }}
@@ -829,45 +847,45 @@ const VerificationManagement: React.FC = () => {
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             >
-            <div className="p-6 flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-4 flex-shrink-0">
-              <XCircle className="h-8 w-8 text-red-600" />
-              <h3 className="text-lg font-medium text-gray-900">Benutzer ablehnen</h3>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-            <p className="text-gray-600 mb-4">
-              Möchten Sie diesen Benutzer ablehnen? Bitte geben Sie optional einen Grund an.
-            </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ablehnungsgrund (optional)</label>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="Grund für die Ablehnung..."
-              />
-            </div>
-            </div>
-            <div className="flex gap-2 justify-end pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectionReason('');
-                  setUserToReject(null);
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={handleRejectUser}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
-              >
-                Ablehnen
-              </button>
-            </div>
-            </div>
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+                  <XCircle className="h-8 w-8 text-red-600" />
+                  <h3 className="text-lg font-medium text-gray-900">Benutzer ablehnen</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <p className="text-gray-600 mb-4">
+                    Möchten Sie diesen Benutzer ablehnen? Bitte geben Sie optional einen Grund an.
+                  </p>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Ablehnungsgrund (optional)</label>
+                    <textarea
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Grund für die Ablehnung..."
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
+                  <button
+                    onClick={() => {
+                      setShowRejectModal(false);
+                      setRejectionReason('');
+                      setUserToReject(null);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    onClick={handleRejectUser}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                  >
+                    Ablehnen
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </>
         )}

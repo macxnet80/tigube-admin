@@ -3,12 +3,10 @@
 # Active Context
 
 Aktueller Fokus:
-- Nächste Schritte: Keine offenen Todos für die Benutzerverwaltung. Das Hilfe-Center und die Löschfunktion sind abgeschlossen.
+- Verifizierung von Benutzern auf den Tab "Verifizierung" eingeschränkt und manuelle Ausweisprüfung via Checkbox erzwungen.
 
 Zuletzt erledigt:
-- Implementierung der `deleteUser`-Methode in `AdminService` zum unwiderruflichen Löschen eines Benutzers inkl. aus `auth.users`.
-- Hinzufügen des "Delete"-Buttons und des Bestätigungs-Modals ("LÖSCHEN") in der `UserManagement.tsx` Komponente.
-- Migration/Erstellung der Supabase-Tabelle `help_resources`.
-- Anpassung der RLS-Policy auf öffentlichen Lesezugriff ("für alle User zugänglich", nicht mehr nur Premium).
-- Implementierung der `HelpCenterManagement.tsx` Komponente zur Datenpflege dieser Tabelle im `tigube-admin` Dashboard.
-- Hinzufügen des Menüpunkts im Admin Sidebar/Layout.
+- Entfernen der Verifizierungs-Aktionen aus `UserManagement.tsx`.
+- Hinzufügen einer Checkbox "Ausweis wurde überprüft" in `VerificationManagement.tsx`.
+- Logik-Anpassung: Der "Verifizieren"-Button ist nun erst nach Bestätigung der Checkbox aktiv.
+- Sicherstellung, dass der State (`isIdChecked`) beim Schließen des Modals oder nach Erfolg zurückgesetzt wird.

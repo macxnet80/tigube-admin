@@ -41,6 +41,9 @@ interface User {
   suspension_reason: string | null;
   suspended_at: string | null;
   suspended_by: string | null;
+  short_about_me?: string | null;
+  long_about_me?: string | null;
+  services_with_categories?: any[] | null;
 }
 
 const UserManagement: React.FC = () => {
@@ -104,22 +107,13 @@ const UserManagement: React.FC = () => {
     loadUsers(currentPage);
   };
 
-  const handleVerifyUser = async (userId: string) => {
-    try {
-      const success = await AdminService.verifyUser(userId);
-      if (success) {
-        await loadUsers(currentPage);
-      }
-    } catch (err) {
-      console.error('Error verifying user:', err);
-    }
-  };
 
   const handleToggleUserStatus = async (userId: string, isActive: boolean) => {
     try {
       const success = await AdminService.toggleUserStatus(userId, isActive);
       if (success) {
         await loadUsers(currentPage);
+        setSelectedUser(prev => prev?.id === userId ? { ...prev, is_suspended: !isActive } : prev);
       }
     } catch (err) {
       console.error('Error toggling user status:', err);
@@ -131,6 +125,7 @@ const UserManagement: React.FC = () => {
       const success = await AdminService.toggleAdminStatus(userId, isAdmin);
       if (success) {
         await loadUsers(currentPage);
+        setSelectedUser(prev => prev?.id === userId ? { ...prev, is_admin: isAdmin } : prev);
       }
     } catch (err) {
       console.error('Error toggling admin status:', err);
@@ -142,6 +137,7 @@ const UserManagement: React.FC = () => {
       const success = await AdminService.setUserApprovalStatus(userId, status);
       if (success) {
         await loadUsers(currentPage);
+        setSelectedUser(prev => prev?.id === userId ? { ...prev, approval_status: status } : prev);
       }
     } catch (err) {
       console.error('Error setting approval status:', err);
@@ -170,12 +166,10 @@ const UserManagement: React.FC = () => {
       if (success) {
         setShowRejectModal(false);
         setRejectionReason('');
+        setSelectedUser(prev => prev?.id === userToReject ? { ...prev, approval_status: 'rejected', approval_notes: rejectionReason.trim() } : prev);
         setUserToReject(null);
         await loadUsers(currentPage);
-        // Schließe auch das User-Modal falls es geöffnet ist
-        if (showUserModal) {
-          setShowUserModal(false);
-        }
+        // Das User-Modal bleibt offen, damit weitere Aktionen möglich sind
       }
     } catch (err) {
       console.error('Error rejecting user:', err);
@@ -499,15 +493,6 @@ const UserManagement: React.FC = () => {
                             <Eye className="h-4 w-4" />
                           </button>
 
-                          {user.verification_status === 'not_submitted' && (
-                            <button
-                              onClick={() => handleVerifyUser(user.id)}
-                              className="text-green-600 hover:text-green-900"
-                              title="Verifizieren"
-                            >
-                              <UserCheck className="h-4 w-4" />
-                            </button>
-                          )}
 
                           {(user.approval_status === 'pending' || user.approval_status === 'not_requested' || !user.approval_status || user.approval_status === 'rejected') && (
                             <button
@@ -694,31 +679,40 @@ const UserManagement: React.FC = () => {
                   <div className="pt-4 border-t border-gray-200">
                     <h4 className="text-sm font-semibold text-gray-700 mb-3">Profilinformationen</h4>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Profilbild</label>
-                        <div className="mt-1">
+                      <div className="col-span-2 mb-4">
+                        <label className="text-sm font-medium text-gray-500 block mb-2">Profilbild</label>
+                        <div className="relative w-32 h-32 flex items-center justify-center border border-gray-100 rounded-xl bg-gray-50 bg-opacity-50">
                           {selectedUser.profile_photo_url ? (
-                            <img src={selectedUser.profile_photo_url} alt="Profilbild" className="w-16 h-16 rounded-full object-cover" />
+                            <img
+                              src={selectedUser.profile_photo_url}
+                              alt="Profilbild"
+                              className="w-[95%] h-[95%] rounded-xl object-cover shadow-sm border-2 border-white"
+                            />
                           ) : (
                             <p className="text-sm text-gray-500">Kein Profilbild</p>
                           )}
                         </div>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Profil abgeschlossen</label>
-                        <p className="text-sm text-gray-900">{selectedUser.profile_completed ? 'Ja' : 'Nein'}</p>
+
+                      <div className="col-span-2">
+                        <label className="text-sm font-medium text-gray-500">Über mich</label>
+                        <div className="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap max-h-40 overflow-y-auto w-full">
+                          {selectedUser.long_about_me || selectedUser.short_about_me || <span className="text-gray-400 italic">Nicht angegeben</span>}
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Öffentliches Profil sichtbar</label>
-                        <p className="text-sm text-gray-900">{selectedUser.public_profile_visible ? 'Ja' : 'Nein'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Werbung anzeigen</label>
-                        <p className="text-sm text-gray-900">{selectedUser.show_ads ? 'Ja' : 'Nein'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Premium Badge</label>
-                        <p className="text-sm text-gray-900">{selectedUser.premium_badge ? 'Ja' : 'Nein'}</p>
+                      <div className="col-span-2">
+                        <label className="text-sm font-medium text-gray-500">Leistungen</label>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {selectedUser.services_with_categories && selectedUser.services_with_categories.length > 0 ? (
+                            selectedUser.services_with_categories.map((service, index) => (
+                              <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {service.name || 'Unbekannte Leistung'}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-sm text-gray-400 italic">Keine Leistungen angegeben</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -840,26 +834,15 @@ const UserManagement: React.FC = () => {
 
                 <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
                   <div className="flex flex-wrap gap-2">
-                    {selectedUser.verification_status === 'not_submitted' && (
-                      <button
-                        onClick={() => {
-                          handleVerifyUser(selectedUser.id);
-                          setShowUserModal(false);
-                        }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                      >
-                        Verifizieren
-                      </button>
-                    )}
 
                     {(selectedUser.approval_status === 'pending' || selectedUser.approval_status === 'not_requested' || !selectedUser.approval_status) && (
                       <button
                         onClick={() => {
                           handleApproveUser(selectedUser.id);
-                          setShowUserModal(false);
                         }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs shadow-sm flex items-center gap-1.5"
                       >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
                         Freigeben
                       </button>
                     )}
@@ -869,8 +852,9 @@ const UserManagement: React.FC = () => {
                         onClick={() => {
                           handleRejectUser(selectedUser.id);
                         }}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                        className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 text-xs shadow-sm flex items-center gap-1.5"
                       >
+                        <XCircleIcon className="h-3.5 w-3.5" />
                         Ablehnen
                       </button>
                     )}
@@ -879,37 +863,37 @@ const UserManagement: React.FC = () => {
                       <button
                         onClick={() => {
                           handleApproveUser(selectedUser.id);
-                          setShowUserModal(false);
                         }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs shadow-sm flex items-center gap-1.5"
                       >
-                        Direkt freigeben
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Freigeben
                       </button>
                     )}
 
                     <button
                       onClick={() => {
                         handleToggleAdminStatus(selectedUser.id, !selectedUser.is_admin);
-                        setShowUserModal(false);
                       }}
-                      className={`px-4 py-2 rounded-lg text-sm ${selectedUser.is_admin
+                      className={`px-3 py-1.5 rounded-md text-xs shadow-sm flex items-center gap-1.5 ${selectedUser.is_admin
                         ? 'bg-purple-600 text-white hover:bg-purple-700'
                         : 'bg-gray-600 text-white hover:bg-gray-700'
                         }`}
                     >
-                      {selectedUser.is_admin ? 'Admin-Rechte entfernen' : 'Admin-Rechte vergeben'}
+                      {selectedUser.is_admin ? <ShieldOff className="h-3.5 w-3.5" /> : <Shield className="h-3.5 w-3.5" />}
+                      {selectedUser.is_admin ? 'Entziehen' : 'Admin'}
                     </button>
 
                     <button
                       onClick={() => {
                         handleToggleUserStatus(selectedUser.id, !selectedUser.is_suspended);
-                        setShowUserModal(false);
                       }}
-                      className={`px-4 py-2 rounded-lg text-sm ${selectedUser.is_suspended
+                      className={`px-3 py-1.5 rounded-md text-xs shadow-sm flex items-center gap-1.5 ${selectedUser.is_suspended
                         ? 'bg-green-600 text-white hover:bg-green-700'
                         : 'bg-orange-600 text-white hover:bg-orange-700'
                         }`}
                     >
+                      {selectedUser.is_suspended ? <UserCheck className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
                       {selectedUser.is_suspended ? 'Entsperren' : 'Sperren'}
                     </button>
 
@@ -919,10 +903,10 @@ const UserManagement: React.FC = () => {
                           setUserToDelete(selectedUser);
                           setShowDeleteModal(true);
                         }}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm flex items-center gap-2"
+                        className="text-red-500 hover:text-red-700 transition-colors p-1"
+                        title="Benutzer endgültig löschen"
                       >
-                        <Trash className="h-4 w-4" />
-                        Benutzer endgültig löschen
+                        <Trash className="h-5 w-5" />
                       </button>
                     </div>
                   </div>

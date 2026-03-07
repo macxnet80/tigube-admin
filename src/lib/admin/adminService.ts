@@ -186,7 +186,10 @@ export class AdminService {
           suspended_by,
           caretaker_profiles!caretaker_profiles_id_fkey(
             approval_status,
-            approval_notes
+            approval_notes,
+            short_about_me,
+            long_about_me,
+            services_with_categories
           )
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -210,6 +213,9 @@ export class AdminService {
           ...user,
           approval_status: caretakerProfile?.approval_status || user.approval_status || 'not_requested',
           approval_notes: caretakerProfile?.approval_notes || user.approval_notes || null,
+          short_about_me: caretakerProfile?.short_about_me || user.short_about_me || null,
+          long_about_me: caretakerProfile?.long_about_me || user.long_about_me || null,
+          services_with_categories: caretakerProfile?.services_with_categories || user.services_with_categories || null,
           caretaker_profiles: undefined // Entferne das verschachtelte Objekt
         };
       });
@@ -465,7 +471,10 @@ export class AdminService {
           plz,
           caretaker_profiles!caretaker_profiles_id_fkey(
             approval_status,
-            approval_notes
+            approval_notes,
+            short_about_me,
+            long_about_me,
+            services_with_categories
           )
         `)
         .in('user_type', ['caretaker', 'dienstleister', 'tierarzt', 'hundetrainer', 'tierfriseur', 'physiotherapeut', 'ernaehrungsberater', 'tierfotograf', 'sonstige'])
@@ -490,6 +499,9 @@ export class AdminService {
             ...user,
             approval_status: approvalStatus,
             approval_notes: caretakerProfile?.approval_notes || null,
+            short_about_me: caretakerProfile?.short_about_me || null,
+            long_about_me: caretakerProfile?.long_about_me || null,
+            services_with_categories: caretakerProfile?.services_with_categories || null,
             caretaker_profiles: undefined
           };
         })
