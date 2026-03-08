@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Search, RefreshCw, Edit, Trash2, Plus, X, Calendar, Tag, Folder, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../lib/toast/ToastContext';
 import { supabaseAdmin } from '../lib/supabase/admin';
+import { AdminService } from '../lib/admin/adminService';
+import { Upload } from 'lucide-react';
 
 interface ContentItem {
   id: string;
@@ -55,6 +57,17 @@ const BlogCms: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [imageInputMode, setImageInputMode] = useState<'url' | 'upload'>('url');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newTagName, setNewTagName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [creatingTag, setCreatingTag] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [tempCategoryName, setTempCategoryName] = useState('');
+  const [tempTagName, setTempTagName] = useState('');
 
   const itemsPerPage = 20;
 
@@ -107,7 +120,7 @@ const BlogCms: React.FC = () => {
         const itemCategories = Array.isArray(item.content_item_categories)
           ? item.content_item_categories.map((cic: any) => cic.content_categories).filter(Boolean)
           : [];
-        
+
         const itemTags = Array.isArray(item.content_item_tags)
           ? item.content_item_tags.map((cit: any) => cit.content_tags).filter(Boolean)
           : [];
@@ -198,13 +211,18 @@ const BlogCms: React.FC = () => {
       status: 'draft',
       published_at: null
     });
+    setSelectedItem(null);
     setSelectedCategories([]);
     setSelectedTags([]);
+    setImageInputMode('url');
+    setUploadError(null);
+    setUploadingImage(false);
     setIsEditMode(false);
     setShowModal(true);
   };
 
   const handleEdit = (item: ContentItem) => {
+    setSelectedItem(item);
     setFormData(item);
     setSelectedCategories(item.categories?.map(c => c.id) || []);
     setSelectedTags(item.tags?.map(t => t.id) || []);
@@ -221,6 +239,128 @@ const BlogCms: React.FC = () => {
       .replace(/ß/g, 'ss')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validierung
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Bitte wählen Sie eine Bilddatei aus');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Die Datei ist zu groß (max. 5MB)');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      setUploadError(null);
+      const imageUrl = await AdminService.uploadContentImage(file);
+      setFormData(prev => ({ ...prev, cover_image_url: imageUrl }));
+      showSuccess('Bild erfolgreich hochgeladen');
+    } catch (err) {
+      console.error('Error uploading image:', err);
+      setUploadError('Fehler beim Hochladen des Bildes. Bitte versuchen Sie es erneut.');
+      showError('Bild-Upload fehlgeschlagen');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim() || creatingCategory) return;
+
+    try {
+      setCreatingCategory(true);
+      const newCategory = await AdminService.createContentCategory(newCategoryName.trim());
+      await loadCategories();
+      setSelectedCategories(prev => [...prev, newCategory.id]);
+      setNewCategoryName('');
+      showSuccess(`Kategorie "${newCategoryName}" erstellt`);
+    } catch (err) {
+      console.error('Error creating category:', err);
+      showError('Fehler beim Erstellen der Kategorie');
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
+
+  const handleAddTag = async () => {
+    if (!newTagName.trim() || creatingTag) return;
+
+    try {
+      setCreatingTag(true);
+      const newTag = await AdminService.createContentTag(newTagName.trim());
+      await loadTags();
+      setSelectedTags(prev => [...prev, newTag.id]);
+      setNewTagName('');
+      showSuccess(`Tag "${newTagName}" erstellt`);
+    } catch (err) {
+      console.error('Error creating tag:', err);
+      showError('Fehler beim Erstellen des Tags');
+    } finally {
+      setCreatingTag(false);
+    }
+  };
+
+  const handleUpdateCategory = async (id: string) => {
+    if (!tempCategoryName.trim()) return;
+
+    try {
+      await AdminService.updateContentCategory(id, tempCategoryName.trim());
+      await loadCategories();
+      setEditingCategoryId(null);
+      showSuccess('Kategorie aktualisiert');
+    } catch (err) {
+      console.error('Error updating category:', err);
+      showError('Fehler beim Aktualisieren der Kategorie');
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!window.confirm('Möchten Sie diese Kategorie wirklich löschen?')) return;
+
+    try {
+      await AdminService.deleteContentCategory(id);
+      await loadCategories();
+      setSelectedCategories(prev => prev.filter(catId => catId !== id));
+      showSuccess('Kategorie gelöscht');
+    } catch (err) {
+      console.error('Error deleting category:', err);
+      showError('Fehler beim Löschen der Kategorie');
+    }
+  };
+
+  const handleUpdateTag = async (id: string) => {
+    if (!tempTagName.trim()) return;
+
+    try {
+      await AdminService.updateContentTag(id, tempTagName.trim());
+      await loadTags();
+      setEditingTagId(null);
+      showSuccess('Tag aktualisiert');
+    } catch (err) {
+      console.error('Error updating tag:', err);
+      showError('Fehler beim Aktualisieren des Tags');
+    }
+  };
+
+  const handleDeleteTag = async (id: string) => {
+    if (!window.confirm('Möchten Sie diesen Tag wirklich löschen?')) return;
+
+    try {
+      await AdminService.deleteContentTag(id);
+      await loadTags();
+      setSelectedTags(prev => prev.filter(tagId => tagId !== id));
+      showSuccess('Tag gelöscht');
+    } catch (err) {
+      console.error('Error deleting tag:', err);
+      showError('Fehler beim Löschen des Tags');
+    }
   };
 
   const handleSave = async () => {
@@ -327,6 +467,15 @@ const BlogCms: React.FC = () => {
       setShowModal(false);
       setFormData({});
       setSelectedItem(null);
+      setImageInputMode('url');
+      setUploadError(null);
+      setUploadingImage(false);
+      setNewCategoryName('');
+      setNewTagName('');
+      setEditingCategoryId(null);
+      setEditingTagId(null);
+      setTempCategoryName('');
+      setTempTagName('');
       await loadItems(currentPage);
     } catch (err) {
       console.error('Error saving content item:', err);
@@ -416,16 +565,16 @@ const BlogCms: React.FC = () => {
             Verwalten Sie Blog-Inhalte und News ({totalItems} Einträge)
           </p>
         </div>
-        
+
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={handleRefresh}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"
           >
             <RefreshCw className="h-4 w-4" />
             Aktualisieren
           </button>
-          <button 
+          <button
             onClick={handleCreate}
             className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
           >
@@ -447,7 +596,7 @@ const BlogCms: React.FC = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        
+
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value as 'all' | 'blog' | 'news')}
@@ -474,7 +623,7 @@ const BlogCms: React.FC = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Inhalte</h3>
         </div>
-        
+
         {loading ? (
           <div className="p-6 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -484,7 +633,7 @@ const BlogCms: React.FC = () => {
           <div className="p-6 text-center">
             <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
             <p className="text-red-500">{error}</p>
-            <button 
+            <button
               onClick={handleRefresh}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
@@ -528,9 +677,9 @@ const BlogCms: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {item.cover_image_url && (
-                            <img 
-                              src={item.cover_image_url} 
-                              alt={item.title} 
+                            <img
+                              src={item.cover_image_url}
+                              alt={item.title}
                               className="h-12 w-12 object-cover rounded"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
@@ -599,7 +748,7 @@ const BlogCms: React.FC = () => {
                           >
                             <Edit className="h-4 w-4" />
                           </button>
-                          
+
                           <button
                             onClick={() => {
                               setDeleteTargetId(item.id);
@@ -652,7 +801,7 @@ const BlogCms: React.FC = () => {
       <AnimatePresence>
         {showModal && (
           <>
-            <motion.div 
+            <motion.div
               className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
               style={{ margin: 0, padding: 0 }}
               initial={{ opacity: 0 }}
@@ -665,9 +814,17 @@ const BlogCms: React.FC = () => {
                 setSelectedItem(null);
                 setSelectedCategories([]);
                 setSelectedTags([]);
+                setUploadError(null);
+                setUploadingImage(false);
+                setNewCategoryName('');
+                setNewTagName('');
+                setEditingCategoryId(null);
+                setEditingTagId(null);
+                setTempCategoryName('');
+                setTempTagName('');
               }}
             />
-            <motion.div 
+            <motion.div
               className="fixed top-0 right-0 bottom-0 w-full max-w-4xl bg-white shadow-xl z-[101] flex flex-col"
               style={{ margin: 0, padding: 0 }}
               initial={{ x: '100%' }}
@@ -675,192 +832,11 @@ const BlogCms: React.FC = () => {
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             >
-            <div className="p-6 flex flex-col h-full">
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
-              <h3 className="text-lg font-medium text-gray-900">
-                {isEditMode ? 'Inhalt bearbeiten' : 'Neuen Inhalt erstellen'}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setFormData({});
-                  setSelectedItem(null);
-                  setSelectedCategories([]);
-                  setSelectedTags([]);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="space-y-4 flex-1 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Typ *</label>
-                  <select
-                    value={formData.type || 'blog'}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as 'blog' | 'news' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="blog">Blog</option>
-                    <option value="news">News</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
-                  <select
-                    value={formData.status || 'draft'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="draft">Entwurf</option>
-                    <option value="published">Veröffentlicht</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Titel *</label>
-                <input
-                  type="text"
-                  value={formData.title || ''}
-                  onChange={(e) => {
-                    setFormData({ ...formData, title: e.target.value });
-                    // Auto-generate slug wenn leer
-                    if (!formData.slug && !isEditMode) {
-                      setFormData(prev => ({ ...prev, slug: generateSlug(e.target.value) }));
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Titel des Inhalts"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Slug *</label>
-                <input
-                  type="text"
-                  value={formData.slug || ''}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="url-freundlicher-slug"
-                />
-                <p className="text-xs text-gray-500 mt-1">Wird automatisch aus dem Titel generiert</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
-                <textarea
-                  value={formData.excerpt || ''}
-                  onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Kurze Zusammenfassung..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Inhalt *</label>
-                <textarea
-                  value={formData.content || ''}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  rows={10}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                  placeholder="Inhalt des Artikels..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cover Bild URL</label>
-                <input
-                  type="text"
-                  value={formData.cover_image_url || ''}
-                  onChange={(e) => setFormData({ ...formData, cover_image_url: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="https://..."
-                />
-                {formData.cover_image_url && (
-                  <div className="mt-2">
-                    <img
-                      src={formData.cover_image_url}
-                      alt="Vorschau"
-                      className="max-w-full h-32 object-cover rounded-lg border border-gray-300"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Kategorien</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                  {categories.map((category) => (
-                    <label key={category.id} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories.includes(category.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedCategories([...selectedCategories, category.id]);
-                          } else {
-                            setSelectedCategories(selectedCategories.filter(id => id !== category.id));
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{category.name}</span>
-                    </label>
-                  ))}
-                  {categories.length === 0 && (
-                    <p className="text-xs text-gray-400 col-span-full">Keine Kategorien vorhanden</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                  {tags.map((tag) => (
-                    <label key={tag.id} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedTags.includes(tag.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedTags([...selectedTags, tag.id]);
-                          } else {
-                            setSelectedTags(selectedTags.filter(id => id !== tag.id));
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{tag.name}</span>
-                    </label>
-                  ))}
-                  {tags.length === 0 && (
-                    <p className="text-xs text-gray-400 col-span-full">Keine Tags vorhanden</p>
-                  )}
-                </div>
-              </div>
-
-              {formData.status === 'published' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Veröffentlichungsdatum</label>
-                  <input
-                    type="datetime-local"
-                    value={formData.published_at ? new Date(formData.published_at).toISOString().slice(0, 16) : ''}
-                    onChange={(e) => setFormData({ ...formData, published_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
-              <div className="flex gap-2 justify-end">
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {isEditMode ? 'Inhalt bearbeiten' : 'Neuen Inhalt erstellen'}
+                  </h3>
                   <button
                     onClick={() => {
                       setShowModal(false);
@@ -868,28 +844,447 @@ const BlogCms: React.FC = () => {
                       setSelectedItem(null);
                       setSelectedCategories([]);
                       setSelectedTags([]);
+                      setImageInputMode('url');
+                      setUploadError(null);
+                      setUploadingImage(false);
+                      setNewCategoryName('');
+                      setNewTagName('');
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    className="text-gray-400 hover:text-gray-600"
                   >
-                    Abbrechen
+                    <X className="h-6 w-6" />
                   </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        {isEditMode ? 'Wird aktualisiert...' : 'Wird erstellt...'}
-                      </>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-y-auto pb-9">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Typ *</label>
+                      <select
+                        value={formData.type || 'blog'}
+                        onChange={(e) => setFormData({ ...formData, type: e.target.value as 'blog' | 'news' })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="blog">Blog</option>
+                        <option value="news">News</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                      <select
+                        value={formData.status || 'draft'}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="draft">Entwurf</option>
+                        <option value="published">Veröffentlicht</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Titel *</label>
+                    <input
+                      type="text"
+                      value={formData.title || ''}
+                      onChange={(e) => {
+                        const newTitle = e.target.value;
+
+                        setFormData(prev => {
+                          const oldTitle = prev.title || '';
+                          const currentSlug = prev.slug || '';
+                          const newData = { ...prev, title: newTitle };
+
+                          // Auto-generate slug wenn wir nicht im Edit-Mode sind
+                          // UND (der Slug leer ist ODER der aktuelle Slug dem generierten Slug des alten Titels entspricht)
+                          // Letzteres bedeutet, der User hat den Slug noch nicht manuell angefasst.
+                          if (!isEditMode && (!currentSlug || currentSlug === generateSlug(oldTitle))) {
+                            newData.slug = generateSlug(newTitle);
+                          }
+
+                          return newData;
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Titel des Inhalts"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Slug *</label>
+                    <input
+                      type="text"
+                      value={formData.slug || ''}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="url-freundlicher-slug"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Wird automatisch aus dem Titel generiert</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+                    <textarea
+                      value={formData.excerpt || ''}
+                      onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Kurze Zusammenfassung..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Inhalt *</label>
+                    <textarea
+                      value={formData.content || ''}
+                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      rows={10}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                      placeholder="Inhalt des Artikels..."
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">Cover Bild</label>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageInputMode('url');
+                            setUploadError(null);
+                          }}
+                          className={`px-2 py-1 text-xs rounded ${imageInputMode === 'url'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                          URL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageInputMode('upload');
+                            setUploadError(null);
+                          }}
+                          className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${imageInputMode === 'upload'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                          <Upload className="h-3 w-3" />
+                          Upload
+                        </button>
+                      </div>
+                    </div>
+
+                    {imageInputMode === 'url' ? (
+                      <input
+                        type="text"
+                        value={formData.cover_image_url || ''}
+                        onChange={(e) => setFormData({ ...formData, cover_image_url: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="https://..."
+                      />
                     ) : (
-                      isEditMode ? 'Aktualisieren' : 'Erstellen'
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        />
+                        {uploadingImage && (
+                          <div className="flex items-center gap-2 text-sm text-blue-600">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Bild wird hochgeladen...
+                          </div>
+                        )}
+                        {uploadError && (
+                          <div className="text-sm text-red-600 flex items-center gap-1">
+                            <AlertCircle className="h-4 w-4" />
+                            {uploadError}
+                          </div>
+                        )}
+                      </div>
                     )}
-                  </button>
+
+                    {formData.cover_image_url && (
+                      <div className="mt-2">
+                        <img
+                          src={formData.cover_image_url}
+                          alt="Vorschau"
+                          className="max-w-full h-32 object-cover rounded-lg border border-gray-300"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        <p className="text-xs text-gray-500 mt-1 truncate">{formData.cover_image_url}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <div className="flex flex-col gap-2 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">Kategorien</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                            placeholder="Neu..."
+                            className="text-xs px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddCategory();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddCategory}
+                            disabled={creatingCategory || !newCategoryName.trim()}
+                            className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {creatingCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50/30">
+                        {categories.map((category) => (
+                          <div key={category.id} className="group relative flex items-center gap-2 p-1.5 hover:bg-white rounded border border-transparent hover:border-gray-200 transition-all shadow-sm">
+                            {editingCategoryId === category.id ? (
+                              <div className="flex items-center gap-1 w-full z-10">
+                                <input
+                                  type="text"
+                                  value={tempCategoryName}
+                                  onChange={(e) => setTempCategoryName(e.target.value)}
+                                  className="flex-1 text-xs px-1 py-0.5 border border-blue-500 rounded outline-none"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleUpdateCategory(category.id);
+                                    }
+                                    if (e.key === 'Escape') setEditingCategoryId(null);
+                                  }}
+                                />
+                                <button onClick={() => handleUpdateCategory(category.id)} className="text-green-600 hover:text-green-700">
+                                  <RefreshCw className="h-3 w-3" />
+                                </button>
+                                <button onClick={() => setEditingCategoryId(null)} className="text-gray-400 hover:text-gray-600">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCategories.includes(category.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedCategories([...selectedCategories, category.id]);
+                                    } else {
+                                      setSelectedCategories(selectedCategories.filter(id => id !== category.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-700 truncate flex-1">{category.name}</span>
+                                <div className="hidden group-hover:flex items-center gap-1 absolute right-1 bg-white border border-gray-200 px-1 rounded shadow-sm z-10">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setEditingCategoryId(category.id);
+                                      setTempCategoryName(category.name);
+                                    }}
+                                    className="text-gray-400 hover:text-blue-600 p-0.5"
+                                    title="Bearbeiten"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      handleDeleteCategory(category.id);
+                                    }}
+                                    className="text-gray-400 hover:text-red-600 p-0.5"
+                                    title="Löschen"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {categories.length === 0 && (
+                          <p className="text-xs text-gray-400 p-2">Keine Kategorien</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex flex-col gap-2 mb-2">
+                        <label className="block text-sm font-medium text-gray-700">Tags</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newTagName}
+                            onChange={(e) => setNewTagName(e.target.value)}
+                            placeholder="Neu..."
+                            className="text-xs px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddTag();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddTag}
+                            disabled={creatingTag || !newTagName.trim()}
+                            className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {creatingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50/30">
+                        {tags.map((tag) => (
+                          <div key={tag.id} className="group relative flex items-center gap-2 p-1.5 hover:bg-white rounded border border-transparent hover:border-gray-200 transition-all shadow-sm">
+                            {editingTagId === tag.id ? (
+                              <div className="flex items-center gap-1 w-full z-10">
+                                <input
+                                  type="text"
+                                  value={tempTagName}
+                                  onChange={(e) => setTempTagName(e.target.value)}
+                                  className="flex-1 text-xs px-1 py-0.5 border border-blue-500 rounded outline-none"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleUpdateTag(tag.id);
+                                    }
+                                    if (e.key === 'Escape') setEditingTagId(null);
+                                  }}
+                                />
+                                <button onClick={() => handleUpdateTag(tag.id)} className="text-green-600 hover:text-green-700">
+                                  <RefreshCw className="h-3 w-3" />
+                                </button>
+                                <button onClick={() => setEditingTagId(null)} className="text-gray-400 hover:text-gray-600">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTags.includes(tag.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedTags([...selectedTags, tag.id]);
+                                    } else {
+                                      setSelectedTags(selectedTags.filter(id => id !== tag.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-700 truncate flex-1">{tag.name}</span>
+                                <div className="hidden group-hover:flex items-center gap-1 absolute right-1 bg-white border border-gray-200 px-1 rounded shadow-sm z-10">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setEditingTagId(tag.id);
+                                      setTempTagName(tag.name);
+                                    }}
+                                    className="text-gray-400 hover:text-blue-600 p-0.5"
+                                    title="Bearbeiten"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      handleDeleteTag(tag.id);
+                                    }}
+                                    className="text-gray-400 hover:text-red-600 p-0.5"
+                                    title="Löschen"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {tags.length === 0 && (
+                          <p className="text-xs text-gray-400 p-2">Keine Tags</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {formData.status === 'published' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Veröffentlichungsdatum</label>
+                      <input
+                        type="datetime-local"
+                        value={formData.published_at ? new Date(formData.published_at).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => setFormData({ ...formData, published_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => {
+                        setShowModal(false);
+                        setFormData({});
+                        setSelectedItem(null);
+                        setSelectedCategories([]);
+                        setSelectedTags([]);
+                        setImageInputMode('url');
+                        setUploadError(null);
+                        setUploadingImage(false);
+                        setNewCategoryName('');
+                        setNewTagName('');
+                        setEditingCategoryId(null);
+                        setEditingTagId(null);
+                        setTempCategoryName('');
+                        setTempTagName('');
+                      }}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {isEditMode ? 'Wird aktualisiert...' : 'Wird erstellt...'}
+                        </>
+                      ) : (
+                        isEditMode ? 'Aktualisieren' : 'Erstellen'
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-            </div>
             </motion.div>
           </>
         )}
@@ -899,7 +1294,7 @@ const BlogCms: React.FC = () => {
       <AnimatePresence>
         {showDeleteConfirm && deleteTargetId && (
           <>
-            <motion.div 
+            <motion.div
               className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[100]"
               style={{ margin: 0, padding: 0 }}
               initial={{ opacity: 0 }}
@@ -911,7 +1306,7 @@ const BlogCms: React.FC = () => {
                 setDeleteTargetId(null);
               }}
             />
-            <motion.div 
+            <motion.div
               className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-xl z-[101] flex flex-col"
               style={{ margin: 0, padding: 0 }}
               initial={{ x: '100%' }}
@@ -919,34 +1314,34 @@ const BlogCms: React.FC = () => {
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             >
-            <div className="p-6 flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-4 flex-shrink-0">
-              <AlertCircle className="h-8 w-8 text-red-600" />
-              <h3 className="text-lg font-medium text-gray-900">Inhalt löschen?</h3>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-            <p className="text-gray-600 mb-6">
-              Möchten Sie diesen Inhalt wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-            </p>
-            </div>
-            <div className="flex gap-2 justify-end pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
-              <button
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  setDeleteTargetId(null);
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={() => handleDelete(deleteTargetId)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
-              >
-                Löschen
-              </button>
-            </div>
-            </div>
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+                  <AlertCircle className="h-8 w-8 text-red-600" />
+                  <h3 className="text-lg font-medium text-gray-900">Inhalt löschen?</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <p className="text-gray-600 mb-6">
+                    Möchten Sie diesen Inhalt wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+                  </p>
+                </div>
+                <div className="flex gap-2 justify-end pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
+                  <button
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setDeleteTargetId(null);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    onClick={() => handleDelete(deleteTargetId)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                  >
+                    Löschen
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </>
         )}

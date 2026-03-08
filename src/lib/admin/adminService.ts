@@ -876,6 +876,65 @@ export class AdminService {
     }
   }
 
+  // Bild für Blog/Content hochladen
+  static async uploadContentImage(file: File): Promise<string> {
+    try {
+      const client = supabaseAdmin || supabase;
+
+      // Eindeutigen Dateinamen erstellen
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 9);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${timestamp}_${randomString}.${fileExt}`;
+      const filePath = `blog/${fileName}`;
+
+      // Datei hochladen - Nutze content-images bucket
+      const { error } = await client.storage
+        .from('content-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) {
+        console.warn('Error uploading to content-images, trying advertisement-images as fallback:', error);
+
+        // Fallback zu advertisement-images falls content-images nicht existiert
+        const { error: fallbackError } = await client.storage
+          .from('advertisement-images')
+          .upload(`blog/${fileName}`, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (fallbackError) {
+          console.error('Fallback upload failed:', fallbackError);
+          throw fallbackError;
+        }
+
+        const { data: fallbackUrlData } = client.storage
+          .from('advertisement-images')
+          .getPublicUrl(`blog/${fileName}`);
+
+        return fallbackUrlData.publicUrl;
+      }
+
+      // Public URL abrufen
+      const { data: urlData } = client.storage
+        .from('content-images')
+        .getPublicUrl(filePath);
+
+      if (!urlData?.publicUrl) {
+        throw new Error('Could not get public URL for uploaded content image');
+      }
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading content image:', error);
+      throw error;
+    }
+  }
+
   // ==== Hilfe-Center ====
 
   // Hilfe-Ressourcen abrufen
@@ -1003,6 +1062,152 @@ export class AdminService {
       return true;
     } catch (error) {
       console.error('Error deleting help resource:', error);
+      throw error;
+    }
+  }
+
+  // ==== Blog / Content Management ====
+
+  // Kategorie erstellen
+  static async createContentCategory(name: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+      const slug = name
+        .toLowerCase()
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/ß/g, 'ss')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const { data, error } = await client
+        .from('content_categories')
+        .insert({ name, slug })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating content category:', error);
+      throw error;
+    }
+  }
+
+  // Tag erstellen
+  static async createContentTag(name: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+      const slug = name
+        .toLowerCase()
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/ß/g, 'ss')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const { data, error } = await client
+        .from('content_tags')
+        .insert({ name, slug })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating content tag:', error);
+      throw error;
+    }
+  }
+
+  // Kategorie aktualisieren
+  static async updateContentCategory(id: string, name: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+      const slug = name
+        .toLowerCase()
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/ß/g, 'ss')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const { data, error } = await client
+        .from('content_categories')
+        .update({ name, slug })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating content category:', error);
+      throw error;
+    }
+  }
+
+  // Kategorie löschen
+  static async deleteContentCategory(id: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+      const { error } = await client
+        .from('content_categories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error deleting content category:', error);
+      throw error;
+    }
+  }
+
+  // Tag aktualisieren
+  static async updateContentTag(id: string, name: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+      const slug = name
+        .toLowerCase()
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/ß/g, 'ss')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const { data, error } = await client
+        .from('content_tags')
+        .update({ name, slug })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating content tag:', error);
+      throw error;
+    }
+  }
+
+  // Tag löschen
+  static async deleteContentTag(id: string) {
+    try {
+      const client = supabaseAdmin || supabase;
+      const { error } = await client
+        .from('content_tags')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error deleting content tag:', error);
       throw error;
     }
   }
