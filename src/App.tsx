@@ -14,8 +14,19 @@ import BlogCms from './pages/BlogCms';
 import AdvertisementManagement from './pages/AdvertisementManagement';
 import VerificationManagement from './pages/VerificationManagement';
 import HelpCenterManagement from './pages/HelpCenterManagement';
+import MarketplaceModeration from './pages/MarketplaceModeration';
 
-type ActiveTab = 'dashboard' | 'users' | 'moderation' | 'analytics' | 'subscriptions' | 'content' | 'advertisements' | 'verification' | 'help_center';
+type ActiveTab =
+  | 'dashboard'
+  | 'users'
+  | 'moderation'
+  | 'marketplace'
+  | 'analytics'
+  | 'subscriptions'
+  | 'content'
+  | 'advertisements'
+  | 'verification'
+  | 'help_center';
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -28,6 +39,8 @@ function App() {
         return <UserManagement />;
       case 'moderation':
         return <ContentModeration />;
+      case 'marketplace':
+        return <MarketplaceModeration />;
       case 'analytics':
         return <Analytics />;
       case 'subscriptions':

@@ -1,7 +1,17 @@
 import React from 'react';
 import { useAuth } from '../../lib/auth/AuthContext';
 
-type ActiveTab = 'dashboard' | 'users' | 'moderation' | 'analytics' | 'subscriptions' | 'content' | 'advertisements' | 'verification' | 'help_center';
+type ActiveTab =
+  | 'dashboard'
+  | 'users'
+  | 'moderation'
+  | 'marketplace'
+  | 'analytics'
+  | 'subscriptions'
+  | 'content'
+  | 'advertisements'
+  | 'verification'
+  | 'help_center';
 
 interface AdminLayoutProps {
   activeTab: ActiveTab;
@@ -16,6 +26,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
     { id: 'dashboard' as ActiveTab, label: 'Dashboard', icon: '📊' },
     { id: 'users' as ActiveTab, label: 'Benutzer', icon: '👥' },
     { id: 'moderation' as ActiveTab, label: 'Moderation', icon: '🛡️' },
+    { id: 'marketplace' as ActiveTab, label: 'Marktplatz', icon: '🛒' },
     { id: 'analytics' as ActiveTab, label: 'Analytics', icon: '📈' },
     { id: 'subscriptions' as ActiveTab, label: 'Abonnements', icon: '💳' },
     { id: 'content' as ActiveTab, label: 'Content', icon: '📝' },

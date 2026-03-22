@@ -21,6 +21,19 @@ export interface AdminUser {
   created_at: string;
 }
 
+export interface AdminMarketplaceListing {
+  id: string;
+  user_id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  listing_type: string;
+  price_type: string;
+  price: number | null;
+  admin_deactivation_reason: string | null;
+  users: { email: string | null; first_name: string | null; last_name: string | null } | null;
+}
+
 export class AdminService {
   // Dashboard Statistiken abrufen
   static async getDashboardStats(): Promise<DashboardStats> {
@@ -1210,5 +1223,69 @@ export class AdminService {
       console.error('Error deleting content tag:', error);
       throw error;
     }
+  }
+
+  /** Marktplatz-Anzeigen (Service Role / Admin-Client, umgeht RLS) */
+  static async getMarketplaceListingsForAdmin(limit = 200): Promise<AdminMarketplaceListing[]> {
+    const client = supabaseAdmin || supabase;
+    const { data, error } = await client
+      .from('marketplace_listings')
+      .select(
+        `
+        id,
+        user_id,
+        title,
+        status,
+        created_at,
+        listing_type,
+        price_type,
+        price,
+        admin_deactivation_reason,
+        users!marketplace_listings_user_id_fkey ( email, first_name, last_name )
+      `
+      )
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('getMarketplaceListingsForAdmin:', error);
+      throw error;
+    }
+    const raw = (data || []) as Array<
+      Omit<AdminMarketplaceListing, 'users'> & {
+        users:
+          | AdminMarketplaceListing['users']
+          | AdminMarketplaceListing['users'][]
+          | null;
+      }
+    >;
+    return raw.map((row) => {
+      const u = row.users;
+      const users =
+        u == null
+          ? null
+          : Array.isArray(u)
+            ? (u[0] ?? null)
+            : u;
+      return { ...row, users } as AdminMarketplaceListing;
+    });
+  }
+
+  /** Deaktivieren: Status inactive + Hinweis für Inhaber (RPC, Admin-Session) */
+  static async adminDeactivateMarketplaceListing(listingId: string, reason: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_deactivate_marketplace_listing', {
+      p_listing_id: listingId,
+      p_reason: reason.trim(),
+    });
+    if (error) throw error;
+  }
+
+  /** Endgültig löschen + Hinweis für Inhaber (RPC, Admin-Session) */
+  static async adminDeleteMarketplaceListing(listingId: string, reason: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_marketplace_listing', {
+      p_listing_id: listingId,
+      p_reason: reason.trim(),
+    });
+    if (error) throw error;
   }
 }
