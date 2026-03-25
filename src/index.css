@@ -132,6 +132,99 @@
   }
 }
 
+/* TipTap Rich-Text (Blog CMS) – Inhaltsbereich */
+.prose-editor {
+  outline: none;
+}
+.prose-editor p {
+  margin: 0.5em 0;
+}
+.prose-editor p.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #9ca3af;
+  pointer-events: none;
+}
+.prose-editor h1 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+}
+.prose-editor h2 {
+  font-size: 1.25rem;
+  line-height: 1.35;
+  font-weight: 600;
+  margin: 0.65em 0 0.3em;
+}
+.prose-editor h3 {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  font-weight: 600;
+  margin: 0.55em 0 0.25em;
+}
+.prose-editor ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5em 0;
+}
+.prose-editor ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5em 0;
+}
+.prose-editor li {
+  margin: 0.15em 0;
+}
+.prose-editor li p {
+  margin: 0.15em 0;
+}
+.prose-editor blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  margin: 0.75em 0;
+  color: #6b7280;
+  font-style: italic;
+}
+.prose-editor pre {
+  background: #f3f4f6;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.prose-editor code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.875em;
+  background: #f3f4f6;
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+}
+.prose-editor pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+.prose-editor a {
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.prose-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 0.75em 0;
+}
+.prose-editor hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 1rem 0;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Search, RefreshCw, Edit, Trash2, Plus, X, Calendar, Tag, Folder, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../lib/toast/ToastContext';
 import { supabaseAdmin } from '../lib/supabase/admin';
 import { AdminService } from '../lib/admin/adminService';
 import { Upload } from 'lucide-react';
+import { RichTextEditor, isRichTextEffectivelyEmpty } from '../components/RichTextEditor';
+import { BlogPostPreview } from '../components/BlogPostPreview';
 
 interface ContentItem {
   id: string;
@@ -68,8 +70,23 @@ const BlogCms: React.FC = () => {
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tempCategoryName, setTempCategoryName] = useState('');
   const [tempTagName, setTempTagName] = useState('');
+  const [previewTab, setPreviewTab] = useState<'edit' | 'preview'>('edit');
 
   const itemsPerPage = 20;
+
+  const previewCategoryNames = useMemo(
+    () =>
+      selectedCategories
+        .map((id) => categories.find((c) => c.id === id)?.name)
+        .filter((n): n is string => Boolean(n)),
+    [selectedCategories, categories]
+  );
+
+  const previewTagNames = useMemo(
+    () =>
+      selectedTags.map((id) => tags.find((t) => t.id === id)?.name).filter((n): n is string => Boolean(n)),
+    [selectedTags, tags]
+  );
 
   const loadItems = async (page: number = 1) => {
     try {
@@ -218,6 +235,7 @@ const BlogCms: React.FC = () => {
     setUploadError(null);
     setUploadingImage(false);
     setIsEditMode(false);
+    setPreviewTab('edit');
     setShowModal(true);
   };
 
@@ -227,6 +245,7 @@ const BlogCms: React.FC = () => {
     setSelectedCategories(item.categories?.map(c => c.id) || []);
     setSelectedTags(item.tags?.map(t => t.id) || []);
     setIsEditMode(true);
+    setPreviewTab('edit');
     setShowModal(true);
   };
 
@@ -368,7 +387,7 @@ const BlogCms: React.FC = () => {
 
     try {
       // Validierung
-      if (!formData.title || !formData.content) {
+      if (!formData.title || isRichTextEffectivelyEmpty(formData.content)) {
         showError('Bitte füllen Sie Titel und Inhalt aus.');
         return;
       }
@@ -464,6 +483,7 @@ const BlogCms: React.FC = () => {
         }
       }
 
+      setPreviewTab('edit');
       setShowModal(false);
       setFormData({});
       setSelectedItem(null);
@@ -809,6 +829,7 @@ const BlogCms: React.FC = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
               onClick={() => {
+                setPreviewTab('edit');
                 setShowModal(false);
                 setFormData({});
                 setSelectedItem(null);
@@ -839,6 +860,7 @@ const BlogCms: React.FC = () => {
                   </h3>
                   <button
                     onClick={() => {
+                      setPreviewTab('edit');
                       setShowModal(false);
                       setFormData({});
                       setSelectedItem(null);
@@ -849,6 +871,10 @@ const BlogCms: React.FC = () => {
                       setUploadingImage(false);
                       setNewCategoryName('');
                       setNewTagName('');
+                      setEditingCategoryId(null);
+                      setEditingTagId(null);
+                      setTempCategoryName('');
+                      setTempTagName('');
                     }}
                     className="text-gray-400 hover:text-gray-600"
                   >
@@ -856,7 +882,34 @@ const BlogCms: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="space-y-4 flex-1 overflow-y-auto pb-9">
+                <div className="flex gap-1 border-b border-gray-200 mb-4 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('edit')}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${
+                      previewTab === 'edit'
+                        ? 'border-blue-600 text-blue-600 bg-white'
+                        : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    Bearbeiten
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('preview')}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${
+                      previewTab === 'preview'
+                        ? 'border-blue-600 text-blue-600 bg-white'
+                        : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    Vorschau
+                  </button>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-y-auto pb-9 min-h-0">
+                  {previewTab === 'edit' ? (
+                  <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Typ *</label>
@@ -935,13 +988,15 @@ const BlogCms: React.FC = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Inhalt *</label>
-                    <textarea
+                    <RichTextEditor
                       value={formData.content || ''}
-                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      rows={10}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                      placeholder="Inhalt des Artikels..."
+                      onChange={(json) => setFormData({ ...formData, content: json })}
+                      placeholder="Inhalt des Artikels…"
+                      disabled={saving}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Rich-Text mit Formatierung und Bildern. Wird als strukturierte Daten (JSON) gespeichert.
+                    </p>
                   </div>
 
                   <div>
@@ -1243,12 +1298,21 @@ const BlogCms: React.FC = () => {
                       />
                     </div>
                   )}
+                  </>
+                  ) : (
+                    <BlogPostPreview
+                      formData={formData}
+                      selectedCategoryNames={previewCategoryNames}
+                      selectedTagNames={previewTagNames}
+                    />
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-gray-200 flex-shrink-0 mt-auto">
                   <div className="flex gap-2 justify-end">
                     <button
                       onClick={() => {
+                        setPreviewTab('edit');
                         setShowModal(false);
                         setFormData({});
                         setSelectedItem(null);
