@@ -34,6 +34,7 @@ interface PendingUser {
   plz: string | null;
   approval_status: string;
   approval_notes: string | null;
+  profile_photo_url?: string | null;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -279,11 +280,19 @@ const AdminDashboard: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3">
                         <div className="flex-shrink-0">
-                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-700">
-                              {user.first_name?.[0]}{user.last_name?.[0]}
-                            </span>
-                          </div>
+                          {user.profile_photo_url ? (
+                            <img
+                              src={user.profile_photo_url}
+                              alt=""
+                              className="h-10 w-10 rounded-full object-cover border border-gray-200"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                              <span className="text-sm font-medium text-gray-700">
+                                {user.first_name?.[0]}{user.last_name?.[0]}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">

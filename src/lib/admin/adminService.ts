@@ -208,6 +208,8 @@ export class AdminService {
           suspension_reason,
           suspended_at,
           suspended_by,
+          owner_approval_status,
+          owner_approval_notes,
           caretaker_profiles!caretaker_profiles_id_fkey(
             approval_status,
             approval_notes,
@@ -227,16 +229,24 @@ export class AdminService {
 
       console.log(`Fetched ${users?.length || 0} users, total count: ${count}`);
 
-      // Mappe die Daten und füge approval_status aus caretaker_profiles hinzu
+      // Freigabe: Tierhalter aus users.owner_approval_*; Betreuer/Dienstleister aus caretaker_profiles
       const mappedUsers = (users || []).map((user: any) => {
         const caretakerProfile = Array.isArray(user.caretaker_profiles)
           ? user.caretaker_profiles[0]
           : user.caretaker_profiles || null;
 
+        const isOwner = user.user_type === 'owner';
+        const approval_status = isOwner
+          ? (user.owner_approval_status || 'not_requested')
+          : (caretakerProfile?.approval_status || 'not_requested');
+        const approval_notes = isOwner
+          ? (user.owner_approval_notes ?? null)
+          : (caretakerProfile?.approval_notes || null);
+
         return {
           ...user,
-          approval_status: caretakerProfile?.approval_status || user.approval_status || 'not_requested',
-          approval_notes: caretakerProfile?.approval_notes || user.approval_notes || null,
+          approval_status,
+          approval_notes,
           short_about_me: caretakerProfile?.short_about_me || user.short_about_me || null,
           long_about_me: caretakerProfile?.long_about_me || user.long_about_me || null,
           services_with_categories: caretakerProfile?.services_with_categories || user.services_with_categories || null,
@@ -342,16 +352,39 @@ export class AdminService {
     try {
       const client = supabaseAdmin || supabase;
 
-      // Prüfe zuerst, ob ein caretaker_profiles Eintrag existiert
-      const { error: checkError } = await client
-        .from('caretaker_profiles')
-        .select('id')
+      const { data: userRow, error: userFetchErr } = await client
+        .from('users')
+        .select('user_type')
         .eq('id', userId)
         .maybeSingle();
 
-      if (checkError) {
-        console.error('Error checking caretaker profile:', checkError);
+      if (userFetchErr || !userRow) {
+        console.error('Error loading user for approval:', userFetchErr);
         return false;
+      }
+
+      // Tierhalter: Freigabe auf `users` (owner_approval_*)
+      if (userRow.user_type === 'owner') {
+        const ownerUpdate: Record<string, unknown> = {
+          owner_approval_status: status,
+          updated_at: new Date().toISOString()
+        };
+        if (status === 'rejected') {
+          ownerUpdate.owner_approval_notes = approvalNotes !== undefined ? approvalNotes : null;
+        } else if (approvalNotes !== undefined) {
+          ownerUpdate.owner_approval_notes = approvalNotes;
+        } else if (status === 'approved') {
+          ownerUpdate.owner_approval_notes = null;
+        }
+        const { error: ownerErr } = await client
+          .from('users')
+          .update(ownerUpdate)
+          .eq('id', userId);
+        if (ownerErr) {
+          console.error('Error setting owner approval status:', ownerErr);
+          return false;
+        }
+        return true;
       }
 
       // Hole aktuellen Admin-User für approval_approved_by
@@ -482,6 +515,39 @@ export class AdminService {
     try {
       const client = supabaseAdmin;
 
+      const { data: ownerRows, error: ownerErr } = await client
+        .from('users')
+        .select(`
+          id,
+          email,
+          first_name,
+          last_name,
+          user_type,
+          created_at,
+          city,
+          plz,
+          profile_photo_url,
+          owner_approval_status,
+          owner_approval_notes
+        `)
+        .eq('user_type', 'owner')
+        .in('owner_approval_status', ['pending', 'rejected'])
+        .order('created_at', { ascending: false })
+        .limit(Math.max(limit, 50));
+
+      if (ownerErr) {
+        console.error('Error fetching owner pending approvals:', ownerErr);
+      }
+
+      const pendingOwners = (ownerRows || []).map((user: any) => ({
+        ...user,
+        approval_status: user.owner_approval_status,
+        approval_notes: user.owner_approval_notes || null,
+        short_about_me: null,
+        long_about_me: null,
+        services_with_categories: null
+      }));
+
       const { data: users, error } = await client
         .from('users')
         .select(`
@@ -493,6 +559,7 @@ export class AdminService {
           created_at,
           city,
           plz,
+          profile_photo_url,
           caretaker_profiles!caretaker_profiles_id_fkey(
             approval_status,
             approval_notes,
@@ -503,7 +570,7 @@ export class AdminService {
         `)
         .in('user_type', ['caretaker', 'dienstleister', 'tierarzt', 'hundetrainer', 'tierfriseur', 'physiotherapeut', 'ernaehrungsberater', 'tierfotograf', 'sonstige'])
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .limit(Math.max(limit, 100));
 
       if (error) {
         console.error('Error fetching pending approval users:', error);
@@ -511,7 +578,7 @@ export class AdminService {
       }
 
       // Filtere und mappe die Daten
-      const pendingUsers = (users || [])
+      const pendingCaretakers = (users || [])
         .map((user: any) => {
           const caretakerProfile = Array.isArray(user.caretaker_profiles)
             ? user.caretaker_profiles[0]
@@ -534,7 +601,12 @@ export class AdminService {
           user.approval_status === 'rejected'
         );
 
-      return pendingUsers;
+      const merged = [...pendingOwners, ...pendingCaretakers].sort(
+        (a: any, b: any) =>
+          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      );
+
+      return merged.slice(0, limit);
     } catch (error) {
       console.error('Error fetching pending approval users:', error);
       throw error;
