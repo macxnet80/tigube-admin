@@ -5,10 +5,10 @@
   "type": "module",
   "description": "Tigube Admin Dashboard - Separated Admin Interface",
   "scripts": {
-    "dev": "vite --port 5175",
+    "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview --port 4175"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.4",
@@ -20,6 +20,8 @@
     "@tiptap/pm": "^3.20.5",
     "@tiptap/react": "^3.20.5",
     "@tiptap/starter-kit": "^3.20.5",
+    "baseline-browser-mapping": "^2.10.14",
+    "caniuse-lite": "^1.0.30001784",
     "clsx": "^2.0.0",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.294.0",

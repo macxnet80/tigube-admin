@@ -34,6 +34,17 @@ export interface AdminMarketplaceListing {
   users: { email: string | null; first_name: string | null; last_name: string | null } | null;
 }
 
+export interface AdminOwnerJobRow {
+  id: string;
+  owner_id: string;
+  title: string;
+  description: string;
+  status: string;
+  location_text: string | null;
+  created_at: string;
+  users: { email: string | null; first_name: string | null; last_name: string | null } | null;
+}
+
 export class AdminService {
   // Dashboard Statistiken abrufen
   static async getDashboardStats(): Promise<DashboardStats> {
@@ -1284,6 +1295,51 @@ export class AdminService {
   static async adminDeleteMarketplaceListing(listingId: string, reason: string): Promise<void> {
     const { error } = await supabase.rpc('admin_delete_marketplace_listing', {
       p_listing_id: listingId,
+      p_reason: reason.trim(),
+    });
+    if (error) throw error;
+  }
+
+  /** Tierhalter-Gesuche (owner_jobs), Service Role / Admin-Client */
+  static async getOwnerJobsForAdmin(limit = 200): Promise<AdminOwnerJobRow[]> {
+    const client = supabaseAdmin || supabase;
+    const { data, error } = await client
+      .from('owner_jobs')
+      .select(
+        `
+        id,
+        owner_id,
+        title,
+        description,
+        status,
+        location_text,
+        created_at,
+        users!owner_jobs_owner_id_fkey ( email, first_name, last_name )
+      `
+      )
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('getOwnerJobsForAdmin:', error);
+      throw error;
+    }
+    const raw = (data || []) as Array<
+      Omit<AdminOwnerJobRow, 'users'> & {
+        users: AdminOwnerJobRow['users'] | AdminOwnerJobRow['users'][] | null;
+      }
+    >;
+    return raw.map((row) => {
+      const u = row.users;
+      const users = u == null ? null : Array.isArray(u) ? (u[0] ?? null) : u;
+      return { ...row, users } as AdminOwnerJobRow;
+    });
+  }
+
+  /** Gesuch löschen + Hinweis für Tierhalter (RPC, Admin-Session) */
+  static async adminDeleteOwnerJob(jobId: string, reason: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_owner_job', {
+      p_job_id: jobId,
       p_reason: reason.trim(),
     });
     if (error) throw error;

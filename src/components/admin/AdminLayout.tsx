@@ -6,6 +6,7 @@ type ActiveTab =
   | 'users'
   | 'moderation'
   | 'marketplace'
+  | 'owner_jobs'
   | 'analytics'
   | 'subscriptions'
   | 'content'
@@ -27,6 +28,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ activeTab, onTabChange, child
     { id: 'users' as ActiveTab, label: 'Benutzer', icon: '👥' },
     { id: 'moderation' as ActiveTab, label: 'Moderation', icon: '🛡️' },
     { id: 'marketplace' as ActiveTab, label: 'Marktplatz', icon: '🛒' },
+    { id: 'owner_jobs' as ActiveTab, label: 'Gesuche', icon: '📋' },
     { id: 'analytics' as ActiveTab, label: 'Analytics', icon: '📈' },
     { id: 'subscriptions' as ActiveTab, label: 'Abonnements', icon: '💳' },
     { id: 'content' as ActiveTab, label: 'Content', icon: '📝' },

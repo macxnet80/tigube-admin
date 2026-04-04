@@ -15,12 +15,14 @@ import AdvertisementManagement from './pages/AdvertisementManagement';
 import VerificationManagement from './pages/VerificationManagement';
 import HelpCenterManagement from './pages/HelpCenterManagement';
 import MarketplaceModeration from './pages/MarketplaceModeration';
+import OwnerJobsModeration from './pages/OwnerJobsModeration';
 
 type ActiveTab =
   | 'dashboard'
   | 'users'
   | 'moderation'
   | 'marketplace'
+  | 'owner_jobs'
   | 'analytics'
   | 'subscriptions'
   | 'content'
@@ -41,6 +43,8 @@ function App() {
         return <ContentModeration />;
       case 'marketplace':
         return <MarketplaceModeration />;
+      case 'owner_jobs':
+        return <OwnerJobsModeration />;
       case 'analytics':
         return <Analytics />;
       case 'subscriptions':
