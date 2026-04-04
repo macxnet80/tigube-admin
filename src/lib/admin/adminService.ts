@@ -531,7 +531,7 @@ export class AdminService {
           owner_approval_notes
         `)
         .eq('user_type', 'owner')
-        .in('owner_approval_status', ['pending', 'rejected'])
+        .eq('owner_approval_status', 'pending')
         .order('created_at', { ascending: false })
         .limit(Math.max(limit, 50));
 
@@ -596,10 +596,7 @@ export class AdminService {
             caretaker_profiles: undefined
           };
         })
-        .filter((user: any) =>
-          user.approval_status === 'pending' ||
-          user.approval_status === 'rejected'
-        );
+        .filter((user: any) => user.approval_status === 'pending');
 
       const merged = [...pendingOwners, ...pendingCaretakers].sort(
         (a: any, b: any) =>

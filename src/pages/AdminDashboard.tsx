@@ -265,7 +265,7 @@ const AdminDashboard: React.FC = () => {
           ) : pendingUsers.length === 0 ? (
             <div className="text-center py-8">
               <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-4" />
-              <p className="text-gray-500">Alle User sind freigegeben!</p>
+              <p className="text-gray-500">Keine offenen Freigabe-Anfragen.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -323,11 +323,7 @@ const AdminDashboard: React.FC = () => {
                       <button
                         onClick={() => handleApproveUser(user.id)}
                         disabled={isProcessing}
-                        className={`px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
-                          user.approval_status === 'rejected' 
-                            ? 'bg-green-600 hover:bg-green-700' 
-                            : 'bg-green-600 hover:bg-green-700'
-                        }`}
+                        className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {isProcessing ? (
                           <>
@@ -337,7 +333,7 @@ const AdminDashboard: React.FC = () => {
                         ) : (
                           <>
                             <CheckCircle2 className="h-4 w-4" />
-                            <span>{user.approval_status === 'rejected' ? 'Erneut freigeben' : 'Freigeben'}</span>
+                            <span>Freigeben</span>
                           </>
                         )}
                       </button>
